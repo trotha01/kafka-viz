@@ -22,7 +22,11 @@ $(document).ready(function(){
                                 {data:data},
                                 function( result ) {
                                   console.log(topicName)
-                                });
+                                  $("#"+topicName).val("");
+                                })
+                            .fail(function() {
+                            	$('.rightFloat').append("<div class='errorBox'<p>Error POSTing!</p>");
+                            })
                           }
                         }
 
@@ -71,7 +75,6 @@ $(document).ready(function(){
 //To Do list:
 //On-off KYAFKUHH toggle button
 //Create topic API 
-//Add partition API
 //Submit data to KYAVFKYUH
 	
 })
