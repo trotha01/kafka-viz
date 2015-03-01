@@ -49,7 +49,7 @@ func main() {
 	logger.Printf("Listening on %s...", bind)
 
 	kafka = newKafka(conf.kafkaBinDir, conf.kafkaConfigDir)
-	kafka.Run()
+	// kafka.Run()
 
 	err := http.ListenAndServe(bind, rtc)
 	if err != nil {
@@ -199,30 +199,30 @@ var zkCmd *exec.Cmd
 var kfCmd *exec.Cmd
 
 func (kc kafkaConfig) Run() {
-	logger.Println("Running kafka")
-	logger.Println(kc.binDir + "/zookeeper-server-start.sh " + kc.configDir + "/zookeeper.properties")
-	logger.Println(kc.binDir + "/kafka-server-start.sh " + kc.configDir + "/server.properties")
-
-	zkCmd = exec.Command("/bin/sh", "-c", kc.binDir+"/zookeeper-server-start.sh "+kc.configDir+"/zookeeper.properties")
-	kfCmd = exec.Command("/bin/sh", "-c", kc.binDir+"/kafka-server-start.sh "+kc.configDir+"/server.properties")
-
-	zkCmd.Stdout = os.Stdout
-	kfCmd.Stdout = os.Stdout
-
 	/*
-		err := zkCmd.Start()
-		if err != nil {
-			logger.Printf("Error running Zookeeper: %s", err.Error())
-		}
+		logger.Println("Running kafka")
+		logger.Println(kc.binDir + "/zookeeper-server-start.sh " + kc.configDir + "/zookeeper.properties")
+		logger.Println(kc.binDir + "/kafka-server-start.sh " + kc.configDir + "/server.properties")
 
-		time.Sleep(20 * time.Second)
+		zkCmd = exec.Command("/bin/sh", "-c", kc.binDir+"/zookeeper-server-start.sh "+kc.configDir+"/zookeeper.properties")
+		kfCmd = exec.Command("/bin/sh", "-c", kc.binDir+"/kafka-server-start.sh "+kc.configDir+"/server.properties")
 
-		err = kfCmd.Start()
-		if err != nil {
-			logger.Printf("Error running Kafka: %s", err.Error())
-		}
+		zkCmd.Stdout = os.Stdout
+		kfCmd.Stdout = os.Stdout
 
-		time.Sleep(20 * time.Second)
+			err := zkCmd.Start()
+			if err != nil {
+				logger.Printf("Error running Zookeeper: %s", err.Error())
+			}
+
+			time.Sleep(20 * time.Second)
+
+			err = kfCmd.Start()
+			if err != nil {
+				logger.Printf("Error running Kafka: %s", err.Error())
+			}
+
+			time.Sleep(20 * time.Second)
 	*/
 	// kc.consumeOffsets(0, 10, "test", 0)
 	// kc.Produce("from a function!", "test")
