@@ -17,7 +17,12 @@ $(document).ready(function(){
         return function() {
           partitionLength -= 1;
           var lenMinusFive = partitionLength - 5;
-          var partitionRange = "" + lenMinusFive + "-" + partitionLength;
+          var partitionRange = $('#'+topicName+"PartitionRange").val();
+          if (partitionRange === "") {
+            partitionRange = "" + lenMinusFive + "-" + partitionLength;
+            $('#'+topicName+"PartitionRange").val(partitionRange);
+          }
+
           var url = "/topics/"+topicName+"/"+partition+"/"+partitionRange;
           $.get(url, function(result) {
             console.log(result);
@@ -51,13 +56,13 @@ $(document).ready(function(){
       var newSubTitle = $( "<div class='subTitle' />");
       var newTopic = $( "<div class='topic' />" );
       var newLeft = $( "<div class='leftFloat' />");
-      var newPartition = $( "<div class='partition z-depth-1'/>");
       var newRight = $( "<div class='rightFloat' />");
       var newExport = $( "<div class='dataInput android-input-wrapper'>"+
                          "<input type='text' id='"+topicName+"'"+
                          "placeholder='Add Data to Topic' class='android-input dataInput'"+
                          "name='customerEmail' />"+
                          "</div>");
+      var newPartitionRange = $( "<input type=text id='"+topicName+"PartitionRange' placeholder='partition range'/>" )
       var newSubmitBtn = $( "<input class='btn dataSubmit' type='submit' value='Submit'/><br></form>");
       var newDataArea = $( "<div class='data', id='"+topicName+"Data';></div>");
       newDataArea.hide();
@@ -73,6 +78,7 @@ $(document).ready(function(){
       newTopic.append(newLeft);
       newTopic.append(newRight);
       newLeft.append(partitionAddButton);
+      newRight.append(newPartitionRange);
       newRight.append(newDataArea);
 
       newSubTitle.append("<h5>"+topicName+"</h5>");
@@ -110,5 +116,3 @@ function loadTopics() {
 
   });
 }
-
-

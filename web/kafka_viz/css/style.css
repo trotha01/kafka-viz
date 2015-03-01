@@ -73,7 +73,7 @@ h6{
 	position: relative;
 	float:right;
 	width: 30%;
-	height: auto;
+	height: 90%;
 	text-align: center;
 	color: white !important;
 }
@@ -93,11 +93,13 @@ h6{
   background-color: rgb(226, 225, 225);
   color: black;
   border: 1px solid black;
+  height: 80%;
+  padding: 10px;
 }
 .dataInput{
-  float:left;
-  width:50%;
+  float: left;
+  width: 50%;
 }
 .dataSubmit{
-  float:left;
+  float: left;
 }
