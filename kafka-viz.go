@@ -42,7 +42,7 @@ func main() {
 
 	rtc.HandleFunc("/topics/{topic}/{partition}/{offsetRange}", consumerHandler) // get data
 	rtc.HandleFunc("/topics/{topic}", producerHandler)                           // insert data
-	rtc.HandleFunc("/topics", topicDataHandler)                                  // insert data
+	rtc.HandleFunc("/topics", topicDataHandler)                                  // get metadata
 	rtc.PathPrefix("/").Handler(http.FileServer(http.Dir("./web/kafka_viz")))
 
 	bind := fmt.Sprintf("%s:%s", conf.host, conf.port)
@@ -75,15 +75,15 @@ type metadataResponse struct {
 }
 
 func topicDataHandler(w http.ResponseWriter, r *http.Request) {
+	r.ParseForm()
+	topics := r.Form["topic"]
 
-	metadata, err := kafka.Metadata()
+	metadata, err := kafka.Metadata(topics)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	fmt.Println("metadata returned")
-	fmt.Println(metadata)
 	metadataResponse := metadataResponse{}
 	metadataResponse.Result = metadata
 	response, err := json.Marshal(metadataResponse)
@@ -91,30 +91,7 @@ func topicDataHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	fmt.Println("marshalled metadata")
-	fmt.Println(string(response[:]))
 	fmt.Fprintf(w, string(response[:]))
-
-	fmt.Fprintf(w,
-		`{
-            result: [
-                { "name" : "topic1",
-                  "paritions" : 4
-                  "partition_info" : [
-                        {"length": 24}
-                        {"length": 25}
-                        {"length": 22}
-                        {"length": 24}
-                  ]
-                }
-                { "name" : "topic2",
-                  "paritions" : 1
-                  "partition_info" : [
-                        {"length": 103}
-                  ]
-                }
-            ]
-        }`)
 }
 
 func producerHandler(w http.ResponseWriter, r *http.Request) {
@@ -214,6 +191,7 @@ func newKafka(binDir, configDir string) kafkaConfig {
 	kc.binDir = binDir
 	kc.configDir = configDir
 	kc.broker = "localhost:9092"
+	//zookeeper = 2181
 	return kc
 }
 
@@ -282,7 +260,7 @@ type topicMetadata struct {
    }
 */
 
-func (kc kafkaConfig) Metadata() ([]topicMetadata, error) {
+func (kc kafkaConfig) Metadata(topics []string) ([]topicMetadata, error) {
 	broker := sarama.NewBroker(kc.broker)
 	err := broker.Open(nil)
 	if err != nil {
@@ -291,7 +269,11 @@ func (kc kafkaConfig) Metadata() ([]topicMetadata, error) {
 	defer broker.Close()
 
 	// TODO: configurable topic
-	request := sarama.MetadataRequest{Topics: []string{"test"}}
+	request := sarama.MetadataRequest{}
+	if len(topics) != 0 {
+		request.Topics = topics
+	}
+
 	response, err := broker.GetMetadata("myClient", &request)
 	if err != nil {
 		return nil, err
@@ -419,6 +401,25 @@ func (kc kafkaConfig) consumeOffsets(offset int, offsetCount int, topic string, 
 		}
 	}
 	return result, nil
+}
+
+func (kc kafkaConfig) addTopic(topic string) error {
+	broker := sarama.NewBroker(kc.broker)
+	err := broker.Open(nil)
+	if err != nil {
+		logger.Printf("Error opening sarama broker. Error: %s", err.Error())
+		return err
+	}
+	defer broker.Close()
+
+	client, err := sarama.NewClient("client_id", []string{broker.Addr()}, nil)
+	if err != nil {
+		logger.Printf("Error creating sarama client: " + err.Error())
+		return err
+	}
+	defer client.Close()
+
+	return nil
 }
 
 func initializeLogger() {
