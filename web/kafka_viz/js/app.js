@@ -38,7 +38,6 @@ $(document).ready(function(){
       var newPartition = $( "<div class='partition z-depth-1'/>");
       var newRight = $( "<div class='rightFloat' />");
       var newExport = $( "<div class='partitionDownload' /> <a class='waves-effect waves-light btn small'>Download</a><div class='android-input-wrapper'><input type='text' id='"+topicName+"' placeholder='Add Data to Partition' class='android-input'  name='customerEmail' /></div>");
-      // var newExport = $( "<div class='partitionDownload' /> <a class='waves-effect waves-light btn small'>Download</a><div class='android-input-wrapper'><input type='text' placeholder='Add Data to Partition' class='android-input'  name='customerEmail' /></div>");
       var newSubmitBtn = $( "<input class='btn' type='submit' value='Submit'/><br></form>");
 
       newSubmitBtn.click(clickFun(topicName));
@@ -67,7 +66,10 @@ $(document).ready(function(){
 
 
   //end tech debt
-  $.ajax({url: "http://private-292b6-kafkahttp.apiary-mock.com/topics",
+  // var url = "http://private-292b6-kafkahttp.apiary-mock.com/topics"
+  var url = "/topics"
+  $.ajax({
+    url: url,
     success: createTopic
 
   });
