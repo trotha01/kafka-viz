@@ -73,7 +73,7 @@ $(document).ready(function(){
 
       newSubTitle.append("<h5>"+topicName+"</h5>");
       var newAddButton = $( "<div class='partitionButtons' /><a class='btn-floating btn-medium waves-effect waves-light lightteal'><i class='mdi-content-add'></i></a><br><br>");
-      newSubTitle.append("<h6>"+"partition(s): "+partitionNum+",  "+"replication factor(s): "+replicationNum+"</h6>");
+      newSubTitle.append("<h6>"+"partition(s): "+partitionNum+",  "+"replication factor: "+replicationNum+"</h6>");
 
 
       for(j in result.result[i].partition_info){
