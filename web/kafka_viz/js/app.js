@@ -11,16 +11,20 @@ $(document).ready(function(){
 				var topicName = result.result[i].name;
 				var replicationNum = result.result[i].replication;
 				var partitionNum = result.result[i].partitions;
-			}
+                        }
 
-			var clickFun = function(topicName) {
-				return function() {
-					$.post( "http://private-e3c89-kafkahttp.apiary-mock.com/topics/"+topicName, {data:"hi mom!"},
-							function( data ) {
-  								console.log('thisworked!')
-						}); 
-				}
-			}
+                        var clickFun = function(topicName) {
+                          return function() {
+                            // var url = "http://private-e3c89-kafkahttp.apiary-mock.com/topics/"+topicName
+                            data=$("#"+topicName).val();
+                            var url = "/topics/"+topicName
+                            $.post( url,
+                                {data:data},
+                                function( result ) {
+                                  console.log(topicName)
+                                });
+                          }
+                        }
 
 			//Create variables for divs & classes
 			var newContainer = $( "<div class='container'/>" );
@@ -29,7 +33,8 @@ $(document).ready(function(){
 			var newLeft = $( "<div class='leftFloat' />");
 			var newPartition = $( "<div class='partition z-depth-1'/>");
 			var newRight = $( "<div class='rightFloat' />");
-			var newExport = $( "<div class='partitionDownload' /> <a class='waves-effect waves-light btn small'>Download</a><div class='android-input-wrapper'><input type='text' placeholder='Add Data to Partition' class='android-input'  name='customerEmail' /></div>");
+			var newExport = $( "<div class='partitionDownload' /> <a class='waves-effect waves-light btn small'>Download</a><div class='android-input-wrapper'><input type='text' id='"+topicName+"' placeholder='Add Data to Partition' class='android-input'  name='customerEmail' /></div>");
+			// var newExport = $( "<div class='partitionDownload' /> <a class='waves-effect waves-light btn small'>Download</a><div class='android-input-wrapper'><input type='text' placeholder='Add Data to Partition' class='android-input'  name='customerEmail' /></div>");
 			var newSubmitBtn = $( "<input class='btn' type='submit' value='Submit'/><br></form>");
 
 			newSubmitBtn.click(clickFun(topicName));
@@ -43,7 +48,6 @@ $(document).ready(function(){
 			newRight.append(newExport);
 			newRight.append(newSubmitBtn);
 
-	
 			newSubTitle.append("<h5>"+topicName+"</h5>");
 			var newAddButton = $( "<div class='partitionButtons' /><span>Add partition for"+topicName+"</span><a class='btn-floating btn-medium waves-effect waves-light lightteal'><i class='mdi-content-add'></i></a><br><br>");
 			var partitionAddButton = $("<div class='partitionButtons'><span>Add partition for "+topicName+" "+"</span><a class='btn-floating btn-medium waves-effect waves-light lightteal'><i class='mdi-content-add'></i></a> </div>");
