@@ -22,6 +22,7 @@ $(document).ready(function(){
           $.get(url, function(result) {
             console.log(result);
             $('#'+topicName+"Data").html(result.join("<br>"));
+            $('#'+topicName+"Data").show();
           });
         };
       }
@@ -52,9 +53,14 @@ $(document).ready(function(){
       var newLeft = $( "<div class='leftFloat' />");
       var newPartition = $( "<div class='partition z-depth-1'/>");
       var newRight = $( "<div class='rightFloat' />");
-      var newExport = $( "<div class='partitionDownload' /> <a class='waves-effect waves-light btn small'>Download</a><div class='android-input-wrapper'><input type='text' id='"+topicName+"' placeholder='Add Data to Partition' class='android-input'  name='customerEmail' /></div>");
-      var newSubmitBtn = $( "<input class='btn' type='submit' value='Submit'/><br></form>");
-      var newDataArea = $( "<div id='"+topicName+"Data';></div>");
+      var newExport = $( "<div class='dataInput android-input-wrapper'>"+
+                         "<input type='text' id='"+topicName+"'"+
+                         "placeholder='Add Data to Topic' class='android-input dataInput'"+
+                         "name='customerEmail' />"+
+                         "</div>");
+      var newSubmitBtn = $( "<input class='btn dataSubmit' type='submit' value='Submit'/><br></form>");
+      var newDataArea = $( "<div class='data', id='"+topicName+"Data';></div>");
+      newDataArea.hide();
 
       var partitionAddButton = $("<div class='partitionButtons'><a class='btn-floating btn-medium waves-effect waves-light lightteal'><i class='mdi-content-add'></i></a> </div>");
 
@@ -67,11 +73,11 @@ $(document).ready(function(){
       newTopic.append(newLeft);
       newTopic.append(newRight);
       newLeft.append(partitionAddButton);
-      newRight.append(newExport);
-      newRight.append(newSubmitBtn);
       newRight.append(newDataArea);
 
       newSubTitle.append("<h5>"+topicName+"</h5>");
+      newSubTitle.append(newExport);
+      newSubTitle.append(newSubmitBtn);
       var newAddButton = $( "<div class='partitionButtons' /><a class='btn-floating btn-medium waves-effect waves-light lightteal'><i class='mdi-content-add'></i></a><br><br>");
       newSubTitle.append("<h6>"+"partition(s): "+partitionNum+",  "+"replication factor: "+replicationNum+"</h6>");
 
@@ -87,12 +93,12 @@ $(document).ready(function(){
 
 
   //end tech debt
-  // var url = "http://private-292b6-kafkahttp.apiary-mock.com/topics"
   loadTopics();
+
   //To Do list:
   //On-off KYAFKUHH toggle button
-  //Create topic API 
-  //Submit data to KYAVFKYUH
+  //Create topic API
+  //Reload only single topic
 
 })
 

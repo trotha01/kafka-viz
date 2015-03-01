@@ -89,3 +89,15 @@ h6{
 	color: #00796B;
 
 }
+.data{
+  background-color: rgb(226, 225, 225);
+  color: black;
+  border: 1px solid black;
+}
+.dataInput{
+  float:left;
+  width:50%;
+}
+.dataSubmit{
+  float:left;
+}
