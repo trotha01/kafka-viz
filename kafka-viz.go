@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -38,11 +39,11 @@ var kafka kafkaConfig
 
 func main() {
 	rtc := mux.NewRouter()
-	chttp.Handle("/", http.FileServer(http.Dir("./web/kafka_viz")))
 
-	rtc.HandleFunc("/", HomeHandler)                                             // homepage
 	rtc.HandleFunc("/topics/{topic}/{partition}/{offsetRange}", consumerHandler) // get data
 	rtc.HandleFunc("/topics/{topic}", producerHandler)                           // insert data
+	rtc.HandleFunc("/topics", topicDataHandler)                                  // insert data
+	rtc.PathPrefix("/").Handler(http.FileServer(http.Dir("./web/kafka_viz")))
 
 	bind := fmt.Sprintf("%s:%s", conf.host, conf.port)
 	logger.Printf("Listening on %s...", bind)
@@ -69,11 +70,40 @@ func configFromEnv() {
 	conf.kafkaConfigDir = os.Getenv("KAFKA_CONFIG_DIR")
 }
 
+func topicDataHandler(w http.ResponseWriter, r *http.Request) {
+
+	fmt.Fprintf(w,
+		`{
+            result: [
+                { "name" : "topic1",
+                  "paritions" : 4
+                  "partition_info" : [
+                        {"length": 24}
+                        {"length": 25}
+                        {"length": 22}
+                        {"length": 24}
+                  ]
+                }
+                { "name" : "topic2",
+                  "paritions" : 1
+                  "partition_info" : [
+                        {"length": 103}
+                  ]
+                }
+            ]
+        }`)
+}
+
 func producerHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "POST" {
 		logger.Printf("Insert Data Request")
-		// params := mux.Vars(r)
-		// topic := params["topic"]
+		params := mux.Vars(r)
+		topic := params["topic"]
+		r.ParseForm()
+		data := r.FormValue("data")
+		logger.Printf("%+v", data)
+		kafka.Produce(data, topic)
+		w.WriteHeader(204)
 	}
 }
 
@@ -88,9 +118,9 @@ func consumerHandler(w http.ResponseWriter, r *http.Request) {
 
 	partition, err := strconv.Atoi(partitionStr)
 	if err != nil {
-		// return user error
 		logger.Printf("Invalid partition: %d", partitionStr)
 		logger.Printf("Invalid partition error: %s", err.Error())
+		http.Error(w, err.Error(), http.StatusBadRequest)
 	}
 
 	var offsetStart int
@@ -98,21 +128,21 @@ func consumerHandler(w http.ResponseWriter, r *http.Request) {
 
 	if strings.Contains(offsetRange, "-") {
 		parsedRange := strings.Split(offsetRange, "-")
-		offsetStart, err := strconv.Atoi(parsedRange[0])
+		offsetStart, err = strconv.Atoi(parsedRange[0])
 		if err != nil {
-			// return user error
 			logger.Printf("Invalid offset start in range: %s", offsetRange)
 			logger.Printf("Invalid offset start error: %s", err.Error())
+			http.Error(w, err.Error(), http.StatusBadRequest)
 		}
 
 		offsetEnd, err := strconv.Atoi(parsedRange[1])
 		if err != nil {
-			// return user error
 			logger.Printf("Invalid offset end in range: %s", offsetRange)
 			logger.Printf("Invalid offset end error: %s", err.Error())
+			http.Error(w, err.Error(), http.StatusBadRequest)
 		}
 
-		offsetLength = offsetEnd - offsetStart
+		offsetLength = offsetEnd - offsetStart + 1
 		if offsetLength < 0 {
 			offsetLength = -offsetLength
 		}
@@ -120,38 +150,32 @@ func consumerHandler(w http.ResponseWriter, r *http.Request) {
 		offsetLength = 1
 		offsetStart, err = strconv.Atoi(offsetRange)
 		if err != nil {
-			// return user error
 			logger.Printf("Invalid offset: %s", offsetRange)
 			logger.Printf("Invalid offset error: %s", err.Error())
+			http.Error(w, err.Error(), http.StatusBadRequest)
 		}
 	}
 
-	//TODO: return results to user
-	kafka.consumeOffsets(offsetStart, offsetLength, topic, partition)
-
-	/*
-		if r.Method == "POST" {
-			r.ParseForm()
-			logger.Println(r.Form)
-		}
-	*/
+	data, err := kafka.consumeOffsets(offsetStart, offsetLength, topic, partition)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+	response, err := json.Marshal(data)
+	if err != nil {
+		logger.Printf("Error consuming from kafka. Err: %s", err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+	fmt.Fprintf(w, string(response))
 }
 
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
 	logger.Printf("Request /")
+	chttp.ServeHTTP(w, r)
 	/*
-		chttp.ServeHTTP(w, r)
-	*/
-
-	if strings.Contains(r.URL.Path, "/") {
-		chttp.ServeHTTP(w, r)
-	} else {
-		fmt.Fprintf(w, "HomeHandler")
-	}
-	/*
-		if r.Method == "POST" {
-			r.ParseForm()
-			logger.Println(r.Form)
+		if strings.Contains(r.URL.Path, "/") {
+			chttp.ServeHTTP(w, r)
+		} else {
+			fmt.Fprintf(w, "HomeHandler")
 		}
 	*/
 }
@@ -199,13 +223,11 @@ func (kc kafkaConfig) Run() {
 
 		time.Sleep(20 * time.Second)
 	*/
-	kc.consumeOffsets(0, 10, "test", 0)
+	// kc.consumeOffsets(0, 10, "test", 0)
 	// kc.Produce("from a function!", "test")
 }
 
 func (kc kafkaConfig) Produce(message string, topic string) {
-	// TODO: host port passed in
-	// client, err := sarama.NewClient("client_id", []string{"localhost:9092"}, sarama.NewClientConfig())
 	client, err := sarama.NewClient("client_id", []string{kc.broker}, sarama.NewClientConfig())
 	if err != nil {
 		panic(err)
@@ -221,23 +243,26 @@ func (kc kafkaConfig) Produce(message string, topic string) {
 	producer.Input() <- &sarama.ProducerMessage{Topic: topic, Key: nil, Value: sarama.StringEncoder(message)}
 }
 
-func (kc kafkaConfig) consumeOffsets(offset int, offsetCount int, topic string, partition int) {
+func (kc kafkaConfig) consumeOffsets(offset int, offsetCount int, topic string, partition int) ([]string, error) {
 	broker := sarama.NewBroker(kc.broker)
 	err := broker.Open(nil)
 	if err != nil {
 		logger.Printf("Error opening sarama broker. Error: %s", err.Error())
+		return nil, err
 	}
 	defer broker.Close()
 
 	client, err := sarama.NewClient("client_id", []string{broker.Addr()}, nil)
 	if err != nil {
-		logger.Fatal(err.Error())
+		logger.Printf("Error creating sarama client: " + err.Error())
+		return nil, err
 	}
 	defer client.Close()
 
 	master, err := sarama.NewConsumer(client, nil)
 	if err != nil {
-		logger.Fatal(err)
+		logger.Printf("Error creating sarama consumer: " + err.Error())
+		return nil, err
 	}
 
 	config := sarama.NewPartitionConsumerConfig()
@@ -245,17 +270,23 @@ func (kc kafkaConfig) consumeOffsets(offset int, offsetCount int, topic string, 
 	config.OffsetValue = int64(offset)
 	consumer, err := master.ConsumePartition(topic, int32(partition), config)
 	if err != nil {
-		logger.Fatal(err)
+		logger.Fatal("Error consuming partition: ", err.Error())
+		return nil, err
 	}
 
+	result := make([]string, offsetCount)
+	var value string
 	for i := 0; i < offsetCount; i++ {
 		select {
 		case message := <-consumer.Messages():
-			logger.Printf("Message value: %v", string(message.Value[:]))
+			value = string(message.Value[:])
+			result[i] = value
 		case err := <-consumer.Errors():
 			logger.Printf("Consumer error. Error: %s", err.Error())
+			return nil, err
 		}
 	}
+	return result, nil
 }
 
 func initializeLogger() {
