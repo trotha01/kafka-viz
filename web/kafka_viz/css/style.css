@@ -1,0 +1,86 @@
+nav{
+	background-color: #00796B;
+	height:100px;
+	padding: 10px;
+}
+#title{
+	position: absolute;
+	float: left;
+	left: 25px;
+	top:8px;
+}
+#navButtons{
+	position: absolute;
+	float: right;
+	right: 25px;
+	top: 22px;
+}
+#onOff{
+	position: absolute;
+	float: right;
+	right: 180px;
+	top: 7px;
+}
+
+
+main{
+	padding: 20px;
+}
+.container{
+	text-align: center;
+	width: 80%
+}
+.topic{
+	text-align: center;
+	overflow:scroll;
+	overflow: hidden;
+	background-color: #B6B6B6;
+	height: 300px;
+	width: 100%;
+	border-radius: 2px;
+	-webkit-box-shadow: 6px -6px 0px 0px rgba(0,0,0,.7);
+	-moz-box-shadow: 6px -6px 0px 0px rgba(0,0,0,.7);
+	box-shadow: 6px -6px 0px 0px rgba(0,0,0,.7);
+	padding: 1%;
+}
+h5{
+	text-align: left;
+}
+h6{
+	text-align: right;
+}
+.partition{
+	text-align: right;
+	background-color: #009688;
+	border-radius: 2px;
+	margin: 1%;
+	padding: 1%;
+}
+.partitionText {
+	top:8px;
+	right: 8px;
+	color: white;
+	padding: 2px;
+}
+.leftFloat{
+	position: relative;
+	float:left;
+	width: 68%;
+	height: auto;
+}
+.rightFloat{
+	position: relative;
+	float:right;
+	width: 30%;
+	height: auto;
+	text-align: center;
+}
+.partitionDownload{
+	height: 10%;
+}
+.partitionButtons{
+	position: relative;
+	float: right;
+	bottom: 0px;
+	padding: 4px;
+}
