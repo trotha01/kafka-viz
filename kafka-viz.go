@@ -70,7 +70,30 @@ func configFromEnv() {
 	conf.kafkaConfigDir = os.Getenv("KAFKA_CONFIG_DIR")
 }
 
+type metadataResponse struct {
+	Result []topicMetadata `json:"result"`
+}
+
 func topicDataHandler(w http.ResponseWriter, r *http.Request) {
+
+	metadata, err := kafka.Metadata()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	fmt.Println("metadata returned")
+	fmt.Println(metadata)
+	metadataResponse := metadataResponse{}
+	metadataResponse.Result = metadata
+	response, err := json.Marshal(metadataResponse)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	fmt.Println("marshalled metadata")
+	fmt.Println(string(response[:]))
+	fmt.Fprintf(w, string(response[:]))
 
 	fmt.Fprintf(w,
 		`{
@@ -225,6 +248,115 @@ func (kc kafkaConfig) Run() {
 	*/
 	// kc.consumeOffsets(0, 10, "test", 0)
 	// kc.Produce("from a function!", "test")
+}
+
+// Returns metadata about kafka
+type topicMetadata struct {
+	Name           string              `json:"name"`
+	Partitions     int                 `json:"partitions"`
+	Replication    int                 `json:"replication"`
+	Partition_info []partitionMetadata `json:"partition_info"`
+}
+
+/*
+   {
+       "result": [
+           { "name" : "topic1",
+             "paritions" : 4,
+             "replication" : 3,
+             "partition_info" : [
+                   {"length": 24},
+                   {"length": 25},
+                   {"length": 22},
+                   {"length": 24}
+             ]
+           },
+           { "name" : "topic2",
+             "replication" : 5,
+             "paritions" : 1,
+             "partition_info" : [
+                   {"length": 103}
+             ]
+           }
+       ]
+   }
+*/
+
+func (kc kafkaConfig) Metadata() ([]topicMetadata, error) {
+	broker := sarama.NewBroker(kc.broker)
+	err := broker.Open(nil)
+	if err != nil {
+		return nil, err
+	}
+	defer broker.Close()
+
+	// TODO: configurable topic
+	request := sarama.MetadataRequest{Topics: []string{"test"}}
+	response, err := broker.GetMetadata("myClient", &request)
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Println("There are", len(response.Topics), "topics active in the cluster.")
+
+	metadata := make([]topicMetadata, len(response.Topics))
+	for i, topic := range response.Topics {
+		fmt.Println("topic name: " + topic.Name)
+		metadata[i].Name = topic.Name
+		metadata[i].Partitions = len(topic.Partitions)
+		metadata[i].Partition_info = make([]partitionMetadata, len(topic.Partitions))
+		replicationFactor, err := kc.TopicReplicationFactor(topic.Name, 0)
+		if err != nil {
+			return nil, err
+		}
+		metadata[i].Replication = replicationFactor
+		for j, partition := range topic.Partitions {
+			partitionInfo, err := kc.PartitionMetadata(topic.Name, partition.ID)
+			if err != nil {
+				return nil, err
+			}
+			metadata[i].Partition_info[j] = *partitionInfo
+		}
+	}
+	fmt.Println(metadata)
+	return metadata, nil
+}
+
+type partitionMetadata struct {
+	Length int64 `json:"length"`
+}
+
+// Sarama requires a partition?
+func (kc kafkaConfig) TopicReplicationFactor(topic string, partition int32) (int, error) {
+	client, err := sarama.NewClient("client_id", []string{kc.broker}, sarama.NewClientConfig())
+	if err != nil {
+		return -1, err
+	}
+	defer client.Close()
+
+	replicaIDs, err := client.Replicas(topic, partition)
+	if err != nil {
+		return -1, err
+	}
+	return len(replicaIDs), nil
+
+}
+
+func (kc kafkaConfig) PartitionMetadata(topic string, partition int32) (*partitionMetadata, error) {
+	client, err := sarama.NewClient("client_id", []string{kc.broker}, sarama.NewClientConfig())
+	if err != nil {
+		return nil, err
+	}
+	defer client.Close()
+
+	latestOffset, err := client.GetOffset(topic, partition, sarama.LatestOffsets)
+	if err != nil {
+		return nil, err
+	}
+	logger.Printf("Topic: %s, Partition: %d", topic, partition)
+	logger.Printf("LatestOffset: %d", latestOffset)
+
+	return &partitionMetadata{Length: latestOffset}, nil
 }
 
 func (kc kafkaConfig) Produce(message string, topic string) {
