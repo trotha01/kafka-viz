@@ -91,6 +91,7 @@ func topicDataHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	w.Header().Set("Content-Type", "application/json")
 	fmt.Fprintf(w, string(response[:]))
 }
 
@@ -165,6 +166,7 @@ func consumerHandler(w http.ResponseWriter, r *http.Request) {
 		logger.Printf("Error consuming from kafka. Err: %s", err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+	w.Header().Set("Content-Type", "application/json")
 	fmt.Fprintf(w, string(response))
 }
 
@@ -283,7 +285,6 @@ func (kc kafkaConfig) Metadata(topics []string) ([]topicMetadata, error) {
 
 	metadata := make([]topicMetadata, len(response.Topics))
 	for i, topic := range response.Topics {
-		fmt.Println("topic name: " + topic.Name)
 		metadata[i].Name = topic.Name
 		metadata[i].Partitions = len(topic.Partitions)
 		metadata[i].Partition_info = make([]partitionMetadata, len(topic.Partitions))
@@ -300,7 +301,6 @@ func (kc kafkaConfig) Metadata(topics []string) ([]topicMetadata, error) {
 			metadata[i].Partition_info[j] = *partitionInfo
 		}
 	}
-	fmt.Println(metadata)
 	return metadata, nil
 }
 

@@ -33,7 +33,7 @@ main{
 	text-align: center;
 	overflow:scroll;
 
-	background-color: #B6B6B6;
+        background-color: #AC7FBB;
 	height: 300px;
 	width: 100%;
 	border-radius: 2px;
@@ -49,6 +49,7 @@ h6{
 	text-align: right;
 }
 .partition{
+        display: block;
 	text-align: right;
 	background-color: #009688;
 	border-radius: 2px;
@@ -81,8 +82,8 @@ h6{
 	color: white;
 }
 .partitionButtons{
+        text-align: left;
 	position: relative;
-	float: right;
 	bottom: 0px;
 	margin: 4px;
 	color: #00796B;
