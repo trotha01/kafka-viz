@@ -21,10 +21,9 @@ nav{
 	right: 180px;
 	top: 7px;
 }
-
-
 main{
 	padding: 20px;
+	color: #00796B ;
 }
 .container{
 	text-align: center;
@@ -33,7 +32,7 @@ main{
 .topic{
 	text-align: center;
 	overflow:scroll;
-	overflow: hidden;
+
 	background-color: #B6B6B6;
 	height: 300px;
 	width: 100%;
@@ -54,7 +53,8 @@ h6{
 	background-color: #009688;
 	border-radius: 2px;
 	margin: 1%;
-	padding: 1%;
+	padding: 1.5%;
+	color: white;
 }
 .partitionText {
 	top:8px;
@@ -74,13 +74,17 @@ h6{
 	width: 30%;
 	height: auto;
 	text-align: center;
+	color: white !important;
 }
 .partitionDownload{
 	height: 10%;
+	color: white;
 }
 .partitionButtons{
 	position: relative;
 	float: right;
 	bottom: 0px;
-	padding: 4px;
+	margin: 4px;
+	color: #00796B;
+
 }
