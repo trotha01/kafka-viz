@@ -1,6 +1,15 @@
 $(document).ready(function(){
   loadTopics();
+
+  $("#topicDropdownBtn").click(function(){
+    showTopicPicker();
+  });
 })
+
+function showTopicPicker() {
+  console.log("Dropdown");
+  $("#topics").show();
+}
 
 
 function loadTopics() {
@@ -35,15 +44,15 @@ var publishMessage = function(topicName) {
 // Returns default newest 5, if not specified
 var partitionRange = function(topicName, partitionLength) {
 
-    var partitionRange = $('#'+topicName+"PartitionRange").val();
+  var partitionRange = $('#'+topicName+"PartitionRange").val();
 
-    if (partitionRange === "") {
-      partitionLength -= 1;
-      var lenMinusFive = partitionLength < 5 ? 0 : partitionLength - 5;
-      partitionRange = "" + lenMinusFive + "-" + partitionLength;
-      $('#'+topicName+"PartitionRange").val(partitionRange);
-    }
-    return partitionRange;
+  if (partitionRange === "") {
+    partitionLength -= 1;
+    var lenMinusFive = partitionLength < 5 ? 0 : partitionLength - 5;
+    partitionRange = "" + lenMinusFive + "-" + partitionLength;
+    $('#'+topicName+"PartitionRange").val(partitionRange);
+  }
+  return partitionRange;
 }
 
 var partitionClick = function(topicName, partition, partitionLength) {
@@ -58,8 +67,37 @@ var partitionClick = function(topicName, partition, partitionLength) {
   };
 }
 
+var selectTopic = function(topic) {
+  return function() {
+    $("#topicDropdownButton").html(topic);
+  }
+}
+
+var fillTopicDropdown = function(result) {
+  topicDropdown = $("#topics");
+  for(i in result.result) {
+    topic = result.result[i].name;
+    console.log(topic);
+    var dropdownItem = $( "<li><a href='#!' id='"+topic+"'>"+topic+"</a></li>");
+    dropdownItem.click(selectTopic(topic));
+    topicDropdown.append(dropdownItem);
+  }
+
+  $('.dropdown-button').dropdown({
+    inDuration: 300,
+    outDuration: 225,
+    constrain_width: false, // Does not change width of dropdown to that of the activator
+    hover: false, // Activate on click
+    alignment: 'left', // Aligns dropdown to left or right edge (works with constrain_width)
+    gutter: 0, // Spacing from edge
+    belowOrigin: false // Displays dropdown below the button
+  }
+  );
+
+}
 
 createTopics = function(result) {
+  fillTopicDropdown(result);
   for(i in result.result) {
     topic = result.result[i];
 
@@ -120,3 +158,4 @@ createTopics = function(result) {
     }
   }
 };
+

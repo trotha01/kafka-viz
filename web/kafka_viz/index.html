@@ -19,8 +19,12 @@
         <h3>KafkaViz</h3>
       </div>
       <div id="navButtons">
-        <a class="waves-effect waves-light btn">Choose Topic</a>
-        <div id="topics"></div>
+        <!-- Dropdown Trigger -->
+        <a id='topicDropdownButton' class='dropdown-button btn' href='#' data-activates='topics'>Topics</a>
+        <!-- Dropdown Structure -->
+        <ul id='topics' class='dropdown-content'>
+        </ul>
+
         <form action="http://www.w3schools.com/html/html_form_action.asp" method="get">
           <label for="toggleCheckbox">
             <input type="checkbox" name="toggled" id="toggleCheckbox" value="1" />
