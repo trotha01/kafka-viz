@@ -68,6 +68,20 @@ func configFromEnv() {
 	conf.logFile = os.Getenv("LOG_FILE")
 	conf.kafkaBinDir = os.Getenv("KAFKA_BIN_DIR")
 	conf.kafkaConfigDir = os.Getenv("KAFKA_CONFIG_DIR")
+
+	// defaults
+	if conf.host == "" {
+		conf.host = "127.0.0.1"
+	}
+	if conf.port == "" {
+		conf.port = "8090"
+	}
+	if conf.logDir == "" {
+		conf.logDir = "."
+	}
+	if conf.logFile == "" {
+		conf.logFile = "STDOUT"
+	}
 }
 
 type metadataResponse struct {
