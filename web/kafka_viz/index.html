@@ -4,7 +4,8 @@
 	<meta charset="UTF-8">
 	<title>Kafka Viz</title>
 
-	<script src="http://code.jquery.com/jquery-1.11.0.min.js"></script>
+	<!--script src="http://code.jquery.com/jquery-1.11.0.min.js"></script-->
+	<script src="js/jquery.js"></script>
 	<script type="text/javascript" src="js/app.js"></script>
 	<script type="text/javascript" src="js/materialize.min.js"></script>
 
@@ -18,12 +19,15 @@
 			<h3>KafkaViz</h3>
 		</div>
 		<div id="navButtons">
-			<a class="waves-effect waves-light btn">Create Topic</a>
+			<a class="waves-effect waves-light btn">Choose Topic</a>
+                        <div id="topics"></div>
 			<form action="http://www.w3schools.com/html/html_form_action.asp" method="get">
        	    	<label for="toggleCheckbox">
 	               	<input type="checkbox" name="toggled" id="toggleCheckbox" value="1" />
                	</label>
+                <!--
        			<a class="waves-effect waves-light btn mdi-file-cloud left red" id="onOff">Shutdown</a>
+                -->
        		</form>
 		</div>
 	</nav>
