@@ -1,3 +1,5 @@
+var selectedPartition = 0;
+
 $(document).ready(function(){
   loadTopics();
   $("#topicDropdownBtn").click(function(){
@@ -29,7 +31,7 @@ var publishMessage = function(topicName) {
           $.get( url,
               function(result) {
                 left = $("#"+topicName+"Left");
-                showPartitionData(result.result[0], left);
+                showPartitions(result.result[0], left);
               })
         })
     .fail(function() {
@@ -41,35 +43,42 @@ var publishMessage = function(topicName) {
 // Returns partition range from topic input box
 // Returns default newest 5, if not specified
 var partitionRange = function(topicName, partitionLength) {
-
-  var partitionRange = $('#'+topicName+"PartitionRange").val();
-
-  if (partitionRange === "") {
-    partitionLength -= 1;
-    var lenMinusFive = partitionLength < 5 ? 0 : partitionLength - 5;
-    partitionRange = "" + lenMinusFive + "-" + partitionLength;
-    $('#'+topicName+"PartitionRange").val(partitionRange);
+  if (partitionLength === 0) {
+    $('#'+topicName+"PartitionRange").val("0");
+    return 0;
   }
-  return partitionRange;
+  partitionLength -= 1;
+  var lenMinusFive = partitionLength < 5 ? 0 : partitionLength - 5;
+  range = "" + lenMinusFive + "-" + partitionLength;
+  $('#'+topicName+"PartitionRange").val(range);
+  return range;
 }
 
-var partitionClick = function(topicName, partition, partitionLength) {
-  return function() {
-    range = partitionRange(topicName, partitionLength);
+var showPartitionData = function(topicName, partition, range) {
+
+    var dataList = $("<ul class='dataList'>");
+    var dataDiv = $('#'+topicName+"Data"); //.html(result.join("<br>"));
+    dataDiv.html("");
 
     var url = "/topics/"+topicName+"/"+partition+"/"+range;
-    var data = $('#'+topicName+"Data"); //.html(result.join("<br>"));
-    var dataList = $("<ul class='dataList'>");
     $.get(url, function(result) {
+      // showPartitionData()
       for (i in result) {
         message = result[i];
         var datum = $( "<li><span class='pull-left'>"+i+"</span><span class='pull-right'>"+message+"<span></li>");
         datum.append("<hr/>");
         dataList.append(datum);
       }
-      data.append(dataList);
-      data.show();
+      dataDiv.append(dataList);
+      dataDiv.show();
     });
+}
+
+var partitionClick = function(topicName, partition, partitionLength) {
+  return function() {
+    selectedPartition = partition;
+    range = partitionRange(topicName, partitionLength);
+    showPartitionData(topicName, partition, range);
   }
 }
 
@@ -151,6 +160,7 @@ var showTopicData = function(topic) {
   var partitionAddButton = $("<div class='partitionButtons'><a class='btn-floating btn-medium waves-effect waves-light lightteal'><i class='mdi-content-add'></i></a> </div>");
 
   newSubmitBtn.click(publishMessage(topicName));
+  newPartitionRange.bind('keypress', partitionRangeKeyPress(topic));
 
   $('main').append(newContainer);
   $('main').append(newContainer);
@@ -170,15 +180,29 @@ var showTopicData = function(topic) {
   newSubTitle.append("<h6>"+"partition(s): "+partitionNum+",  "+"replication factor: "+replicationNum+"</h6>");
 
 
-  showPartitionData(topic, newLeft);
+  showPartitions(topic, newLeft);
 }
 
-var showPartitionData = function(topic, newLeft) {
+var showPartitions = function(topic, newLeft) {
   newLeft.html("");
   for(j in topic.partition_info){
     partitionLength = topic.partition_info[j].length;
+    partitionId = topic.partition_info[j].id;
     var partitionHTML = $("<div class='btn partition z-depth-1'>"+partitionLength+"</div>");
     newLeft.append(partitionHTML);
-    partitionHTML.click(partitionClick(topic.name, j, partitionLength));
+
+    partitionHTML.click(partitionClick(topic.name, partitionId, partitionLength));
+
   }
 }
+
+var partitionRangeKeyPress = function(topic){
+  return function(e) {
+    if(e.which === 13){
+      var range = $(this).children("input").val();
+      showPartitionData(topic.name, selectedPartition, range);
+    }
+  }
+}
+
+

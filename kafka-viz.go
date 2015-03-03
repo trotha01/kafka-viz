@@ -322,6 +322,7 @@ func (kc kafkaConfig) Metadata(topics []string) ([]topicMetadata, error) {
 
 type partitionMetadata struct {
 	Length int64 `json:"length"`
+	Id int32 `json:"id"`
 }
 
 // Sarama requires a partition?
@@ -354,7 +355,7 @@ func (kc kafkaConfig) PartitionMetadata(topic string, partition int32) (*partiti
 		return nil, err
 	}
 
-	return &partitionMetadata{Length: latestOffset}, nil
+	return &partitionMetadata{Length: latestOffset, Id: partition}, nil
 }
 
 func (kc kafkaConfig) Produce(message string, topic string) {
