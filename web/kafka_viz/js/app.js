@@ -1,18 +1,16 @@
 $(document).ready(function(){
   loadTopics();
-
   $("#topicDropdownBtn").click(function(){
-    showTopicPicker();
+    showTopicDropdown();
   });
 })
 
-function showTopicPicker() {
-  console.log("Dropdown");
+var showTopicDropdown = function() {
   $("#topics").show();
 }
 
 
-function loadTopics() {
+var loadTopics = function() {
   var url = "/topics"
     $.ajax({
       url: url,
@@ -24,15 +22,17 @@ function loadTopics() {
 var publishMessage = function(topicName) {
   return function() {
     // var url = "http://private-e3c89-kafkahttp.apiary-mock.com/topics/"+topicName
-    var url = "/topics/"+topicName
-      data=$("#"+topicName).val();
+    var url = "/topics/"+topicName;
+    data=$("#"+topicName).val();
     $.post( url,
         {data:data},
         function( result ) {
-          console.log(topicName)
-            $("#"+topicName).val("");
-          $('main').html("");
-          loadTopics();
+          url = "/topics?topic="+topicName;
+          $.get( url,
+              function(result) {
+                left = $("#"+topicName+"Left");
+                showPartitionData(result.result[0], left);
+              })
         })
     .fail(function() {
       $('.rightFloat').append("<div class='errorBox'<p>Error POSTing!</p>");
@@ -69,14 +69,13 @@ var partitionClick = function(topicName, partition, partitionLength) {
 
 var selectTopic = function(topic, result) {
   return function() {
-    $("#topicDropdownButton").html(topic);
     // Display single topic
     for (i in result.result) {
-        if (result.result[i].name === topic) {
-          $('main').html("");
-          showTopicData(result.result[i]);
-          return;
-        }
+      if (result.result[i].name === topic) {
+        $('main').html("");
+        showTopicData(result.result[i]);
+        return;
+      }
     }
   }
 }
@@ -99,9 +98,7 @@ var fillTopicDropdown = function(result) {
     alignment: 'left', // Aligns dropdown to left or right edge (works with constrain_width)
     gutter: 0, // Spacing from edge
     belowOrigin: false // Displays dropdown below the button
-  }
-  );
-
+  });
 }
 
 var createTopics = function(result) {
@@ -110,10 +107,10 @@ var createTopics = function(result) {
 }
 
 var showResultData = function(result) {
-  for(i in result.result) {
-    topic = result.result[i];
+  // for(i in result.result) {
+    topic = result.result[0];
     showTopicData(topic);
-  }
+  // }
 }
 
 var showTopicData = function(topic) {
@@ -121,6 +118,7 @@ var showTopicData = function(topic) {
     document.write("No Topics Found!");
     return;
   }
+  $("#topicDropdownButton").html(topic.name);
 
   var topicName = topic.name;
   var replicationNum = topic.replication;
@@ -130,7 +128,7 @@ var showTopicData = function(topic) {
   var newContainer = $( "<div class='container'/>" );
   var newSubTitle = $( "<div class='subTitle' />");
   var newTopic = $( "<div class='topic' />" );
-  var newLeft = $( "<div class='leftFloat' />");
+  var newLeft = $( "<div class='leftFloat' id='"+topicName+"Left'/>");
   var newRight = $( "<div class='rightFloat' />");
   var newExport = $( "<div class='dataInput android-input-wrapper'>"+
       "<input type='text' id='"+topicName+"'"+
@@ -166,10 +164,15 @@ var showTopicData = function(topic) {
   newSubTitle.append("<h6>"+"partition(s): "+partitionNum+",  "+"replication factor: "+replicationNum+"</h6>");
 
 
+  showPartitionData(topic, newLeft);
+}
+
+var showPartitionData = function(topic, newLeft) {
+  newLeft.html("");
   for(j in topic.partition_info){
     partitionLength = topic.partition_info[j].length;
     var partitionHTML = $("<div class='btn partition z-depth-1'>"+partitionLength+"</div>");
     newLeft.append(partitionHTML);
-    partitionHTML.click(partitionClick(topicName, j, partitionLength));
+    partitionHTML.click(partitionClick(topic.name, j, partitionLength));
   }
 }

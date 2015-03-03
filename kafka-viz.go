@@ -280,6 +280,7 @@ func (kc kafkaConfig) Metadata(topics []string) ([]topicMetadata, error) {
 	broker := sarama.NewBroker(kc.broker)
 	err := broker.Open(nil)
 	if err != nil {
+		logger.Printf("Error opening broker: %s", err.Error())
 		return nil, err
 	}
 	defer broker.Close()
@@ -292,10 +293,9 @@ func (kc kafkaConfig) Metadata(topics []string) ([]topicMetadata, error) {
 
 	response, err := broker.GetMetadata("myClient", &request)
 	if err != nil {
+		logger.Printf("Error getting metadata from broker: %s", err.Error())
 		return nil, err
 	}
-
-	fmt.Println("There are", len(response.Topics), "topics active in the cluster.")
 
 	metadata := make([]topicMetadata, len(response.Topics))
 	for i, topic := range response.Topics {
@@ -304,12 +304,14 @@ func (kc kafkaConfig) Metadata(topics []string) ([]topicMetadata, error) {
 		metadata[i].Partition_info = make([]partitionMetadata, len(topic.Partitions))
 		replicationFactor, err := kc.TopicReplicationFactor(topic.Name, 0)
 		if err != nil {
+			logger.Printf("Error getting replication factor: %s", err.Error())
 			return nil, err
 		}
 		metadata[i].Replication = replicationFactor
 		for j, partition := range topic.Partitions {
 			partitionInfo, err := kc.PartitionMetadata(topic.Name, partition.ID)
 			if err != nil {
+				logger.Printf("Error getting partition metadata: %s", err.Error())
 				return nil, err
 			}
 			metadata[i].Partition_info[j] = *partitionInfo
@@ -341,16 +343,16 @@ func (kc kafkaConfig) TopicReplicationFactor(topic string, partition int32) (int
 func (kc kafkaConfig) PartitionMetadata(topic string, partition int32) (*partitionMetadata, error) {
 	client, err := sarama.NewClient("client_id", []string{kc.broker}, sarama.NewClientConfig())
 	if err != nil {
+		logger.Printf("Error creating sarama client: %s", err.Error())
 		return nil, err
 	}
 	defer client.Close()
 
 	latestOffset, err := client.GetOffset(topic, partition, sarama.LatestOffsets)
 	if err != nil {
+		logger.Printf("Error getting client offset: %s", err.Error())
 		return nil, err
 	}
-	logger.Printf("Topic: %s, Partition: %d", topic, partition)
-	logger.Printf("LatestOffset: %d", latestOffset)
 
 	return &partitionMetadata{Length: latestOffset}, nil
 }
