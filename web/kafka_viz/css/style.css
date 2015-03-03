@@ -3,6 +3,9 @@ nav{
 	height:100px;
 	padding: 10px;
 }
+hr {
+  clear: both;
+}
 #title{
 	position: absolute;
 	float: left;
@@ -114,4 +117,14 @@ h6{
 }
 .dataSubmit{
   float: left;
+}
+.dataList{
+  list-style-type: none;
+  clear: both;
+}
+.pull-left{
+  float: left;
+}
+.pull-right{
+  float:right;
 }

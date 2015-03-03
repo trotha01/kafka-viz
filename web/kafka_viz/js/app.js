@@ -9,13 +9,11 @@ var showTopicDropdown = function() {
   $("#topics").show();
 }
 
-
 var loadTopics = function() {
   var url = "/topics"
     $.ajax({
       url: url,
       success: createTopics
-
     });
 }
 
@@ -60,9 +58,17 @@ var partitionClick = function(topicName, partition, partitionLength) {
     range = partitionRange(topicName, partitionLength);
 
     var url = "/topics/"+topicName+"/"+partition+"/"+range;
+    var data = $('#'+topicName+"Data"); //.html(result.join("<br>"));
+    var dataList = $("<ul class='dataList'>");
     $.get(url, function(result) {
-      $('#'+topicName+"Data").html(result.join("<br>"));
-      $('#'+topicName+"Data").show();
+      for (i in result) {
+        message = result[i];
+        var datum = $( "<li><span class='pull-left'>"+i+"</span><span class='pull-right'>"+message+"<span></li>");
+        datum.append("<hr/>");
+        dataList.append(datum);
+      }
+      data.append(dataList);
+      data.show();
     });
   }
 }
