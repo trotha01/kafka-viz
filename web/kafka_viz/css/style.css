@@ -14,7 +14,12 @@ nav{
 	float: right;
 	right: 25px;
 	top: 22px;
+        min-width: 180px;
 }
+#navButtons a {
+        min-width: 200px;
+}
+
 #onOff{
 	position: absolute;
 	float: right;
