@@ -5,6 +5,14 @@ $(document).ready(function(){
   $("#topicDropdownBtn").click(function(){
     showTopicDropdown();
   });
+
+  var exampleSocket = new WebSocket("ws://localhost:8090/echo")
+    exampleSocket.onopen = function (event) {
+      exampleSocket.send("data1"); 
+    };
+  exampleSocket.onmessage = function (event) {
+    console.log(event.data);
+  }
 })
 
 var showTopicDropdown = function() {
@@ -99,7 +107,7 @@ var fillTopicDropdown = function(result) {
   topicDropdown = $("#topics");
   for(i in result.result) {
     topic = result.result[i].name;
-    console.log(topic);
+    // console.log(topic);
     var dropdownItem = $( "<li><a href='#!' id='"+topic+"'>"+topic+"</a></li>");
     dropdownItem.click(selectTopic(topic, result));
     topicDropdown.append(dropdownItem);
@@ -204,5 +212,4 @@ var partitionRangeKeyPress = function(topic){
     }
   }
 }
-
 

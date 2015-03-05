@@ -10,9 +10,11 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/shopify/sarama"
+	"golang.org/x/net/websocket"
 )
 
 var chttp = http.NewServeMux()
@@ -35,6 +37,27 @@ func init() {
 	initializeLogger()
 }
 
+// Echo the data received on the WebSocket.
+func EchoServer(ws *websocket.Conn) {
+	//TODO: close if previous go routine is running
+
+	topicDataChan := make(chan []topicMetadata)
+	go kafka.Poll("data1", topicDataChan) // poll for current topic metadata
+
+	for {
+		topicData := <-topicDataChan
+		fmt.Printf("%+v", topicData)
+
+		response, err := json.Marshal(topicData)
+		if err != nil {
+			logger.Printf("Error marshalling topic metadata: %s", err.Error())
+			return
+		}
+
+		io.Copy(ws, strings.NewReader(string(response)))
+	}
+}
+
 var kafka kafkaConfig
 
 func main() {
@@ -43,6 +66,7 @@ func main() {
 	rtc.HandleFunc("/topics/{topic}/{partition}/{offsetRange}", consumerHandler) // get data
 	rtc.HandleFunc("/topics/{topic}", producerHandler)                           // insert data
 	rtc.HandleFunc("/topics", topicDataHandler)                                  // get metadata
+	rtc.Handle("/echo", websocket.Handler(EchoServer))
 	rtc.PathPrefix("/").Handler(http.FileServer(http.Dir("./web/kafka_viz")))
 
 	bind := fmt.Sprintf("%s:%s", conf.host, conf.port)
@@ -214,6 +238,27 @@ func newKafka(binDir, configDir string) kafkaConfig {
 var zkCmd *exec.Cmd
 var kfCmd *exec.Cmd
 
+func (kc kafkaConfig) Poll(topic string, topicDataChan chan []topicMetadata) {
+	fmt.Println("HERE 2")
+	ticker := time.NewTicker(time.Millisecond * 2000)
+	go func() {
+		// topicData := []topicMetadata{}
+		for t := range ticker.C {
+			topicData, err := kc.Metadata([]string{topic})
+			if err != nil {
+				fmt.Print("Error polling topic for metadata: %s", err.Error())
+				return
+			}
+			topicDataChan <- topicData
+			// fmt.Printf("%+v", topicData)
+			fmt.Println("Tick at", t)
+		}
+	}()
+	time.Sleep(time.Millisecond * 8000)
+	ticker.Stop()
+	fmt.Println("Ticker stopped")
+}
+
 func (kc kafkaConfig) Run() {
 	/*
 		logger.Println("Running kafka")
@@ -322,7 +367,7 @@ func (kc kafkaConfig) Metadata(topics []string) ([]topicMetadata, error) {
 
 type partitionMetadata struct {
 	Length int64 `json:"length"`
-	Id int32 `json:"id"`
+	Id     int32 `json:"id"`
 }
 
 // Sarama requires a partition?
