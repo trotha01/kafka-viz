@@ -41,20 +41,30 @@ func init() {
 func EchoServer(ws *websocket.Conn) {
 	//TODO: close if previous go routine is running
 
-	topicDataChan := make(chan []topicMetadata)
-	go kafka.Poll("data1", topicDataChan) // poll for current topic metadata
+	var topic string
+	logger.Printf("HERE")
+	err := websocket.Message.Receive(ws, &topic)
+	if err == io.EOF {
+		logger.Printf("EOF")
+		return
+	}
+	if err != nil {
+		logger.Printf("Error reading from websocket: %s", err.Error())
+		return
+	}
+	logger.Printf("Poll Topic %s", topic)
+
+	topicDataChan := make(chan string)
+	closeChan := make(chan struct{})
+	go kafka.Poll(topic, topicDataChan, closeChan) // poll for current topic metadata
+	defer func() {
+		closeChan <- struct{}{}
+	}()
 
 	for {
 		topicData := <-topicDataChan
 		fmt.Printf("%+v", topicData)
-
-		response, err := json.Marshal(topicData)
-		if err != nil {
-			logger.Printf("Error marshalling topic metadata: %s", err.Error())
-			return
-		}
-
-		io.Copy(ws, strings.NewReader(string(response)))
+		io.Copy(ws, strings.NewReader(topicData))
 	}
 }
 
@@ -116,21 +126,31 @@ func topicDataHandler(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 	topics := r.Form["topic"]
 
-	metadata, err := kafka.Metadata(topics)
+	metadataResponse, err := topicDataResponse(topics)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprintf(w, string(metadataResponse[:]))
+}
+
+func topicDataResponse(topics []string) ([]byte, error) {
+
+	metadata, err := kafka.Metadata(topics)
+	if err != nil {
+		return nil, err
 	}
 
 	metadataResponse := metadataResponse{}
 	metadataResponse.Result = metadata
+
 	response, err := json.Marshal(metadataResponse)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return nil, err
 	}
-	w.Header().Set("Content-Type", "application/json")
-	fmt.Fprintf(w, string(response[:]))
+
+	return response, nil
 }
 
 func producerHandler(w http.ResponseWriter, r *http.Request) {
@@ -238,23 +258,22 @@ func newKafka(binDir, configDir string) kafkaConfig {
 var zkCmd *exec.Cmd
 var kfCmd *exec.Cmd
 
-func (kc kafkaConfig) Poll(topic string, topicDataChan chan []topicMetadata) {
-	fmt.Println("HERE 2")
-	ticker := time.NewTicker(time.Millisecond * 2000)
+func (kc kafkaConfig) Poll(topic string, topicDataChan chan string, closeChan chan struct{}) {
+	fmt.Printf("Polling Topic: %s", topic)
+	ticker := time.NewTicker(time.Millisecond * 1000)
 	go func() {
-		// topicData := []topicMetadata{}
-		for t := range ticker.C {
-			topicData, err := kc.Metadata([]string{topic})
+		for _ = range ticker.C {
+			metadataResponse, err := topicDataResponse([]string{topic})
 			if err != nil {
-				fmt.Print("Error polling topic for metadata: %s", err.Error())
+				fmt.Printf("Error polling topic for metadata: %s", err.Error())
 				return
 			}
-			topicDataChan <- topicData
-			// fmt.Printf("%+v", topicData)
-			fmt.Println("Tick at", t)
+
+			topicDataChan <- string(metadataResponse[:])
+
 		}
 	}()
-	time.Sleep(time.Millisecond * 8000)
+	time.Sleep(time.Millisecond * 10000)
 	ticker.Stop()
 	fmt.Println("Ticker stopped")
 }
@@ -419,7 +438,12 @@ func (kc kafkaConfig) Produce(message string, topic string) {
 	producer.Input() <- &sarama.ProducerMessage{Topic: topic, Key: nil, Value: sarama.StringEncoder(message)}
 }
 
-func (kc kafkaConfig) consumeOffsets(offset int, offsetCount int, topic string, partition int) ([]string, error) {
+type kafkaMessage struct {
+	Offset  int64  `json:"offset"`
+	Message string `json:"message"`
+}
+
+func (kc kafkaConfig) consumeOffsets(offset int, offsetCount int, topic string, partition int) ([]kafkaMessage, error) {
 	broker := sarama.NewBroker(kc.broker)
 	err := broker.Open(nil)
 	if err != nil {
@@ -450,13 +474,13 @@ func (kc kafkaConfig) consumeOffsets(offset int, offsetCount int, topic string, 
 		return nil, err
 	}
 
-	result := make([]string, offsetCount)
+	result := make([]kafkaMessage, offsetCount)
 	var value string
 	for i := 0; i < offsetCount; i++ {
 		select {
 		case message := <-consumer.Messages():
 			value = string(message.Value[:])
-			result[i] = value
+			result[i] = kafkaMessage{Message: value, Offset: message.Offset}
 		case err := <-consumer.Errors():
 			logger.Printf("Consumer error. Error: %s", err.Error())
 			return nil, err

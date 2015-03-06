@@ -1,25 +1,40 @@
 var selectedPartition = 0;
+var currentTopic = "";
 
 $(document).ready(function(){
-  loadTopics();
+  loadTopics(pollTopic);
   $("#topicDropdownBtn").click(function(){
     showTopicDropdown();
   });
-
-  var exampleSocket = new WebSocket("ws://localhost:8090/echo")
-    exampleSocket.onopen = function (event) {
-      exampleSocket.send("data1"); 
-    };
-  exampleSocket.onmessage = function (event) {
-    console.log(event.data);
-  }
 })
+
+
+var pollTopic = function(currentTopic) {
+  console.log("Poll topic: %s", currentTopic)
+  var exampleSocket = new WebSocket("ws://localhost:8090/echo");
+
+  exampleSocket.onopen = function (event) {
+    if (currentTopic !== "") {
+      exampleSocket.send(currentTopic);
+    }
+  };
+
+  exampleSocket.onmessage = function (event) {
+    data = JSON.parse(event.data);
+    data = data.result[0];
+    left = $("#"+data.name+"Left");
+    showPartitions(data, left);
+  }
+}
+
+
+
 
 var showTopicDropdown = function() {
   $("#topics").show();
 }
 
-var loadTopics = function() {
+var loadTopics = function(successFunc) {
   var url = "/topics"
     $.ajax({
       url: url,
@@ -70,10 +85,11 @@ var showPartitionData = function(topicName, partition, range) {
 
     var url = "/topics/"+topicName+"/"+partition+"/"+range;
     $.get(url, function(result) {
-      // showPartitionData()
+      console.log("result:", result)
       for (i in result) {
-        message = result[i];
-        var datum = $( "<li><span class='pull-left'>"+i+"</span><span class='pull-right'>"+message+"<span></li>");
+        message = result[i].message;
+        offset = result[i].offset;
+        var datum = $( "<li><span class='pull-left'>"+offset+"</span><span class='pull-right'>"+message+"<span></li>");
         datum.append("<hr/>");
         dataList.append(datum);
       }
@@ -143,6 +159,8 @@ var showTopicData = function(topic) {
   }
   $("#topicDropdownButton").html(topic.name);
 
+  currentTopic = topic.name;
+
   var topicName = topic.name;
   var replicationNum = topic.replication;
   var partitionNum = topic.partitions;
@@ -189,6 +207,7 @@ var showTopicData = function(topic) {
 
 
   showPartitions(topic, newLeft);
+  pollTopic(topic.name);
 }
 
 var showPartitions = function(topic, newLeft) {
