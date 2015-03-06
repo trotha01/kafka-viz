@@ -38,33 +38,58 @@ func init() {
 }
 
 // Echo the data received on the WebSocket.
-func EchoServer(ws *websocket.Conn) {
+func pollTopic() func(*websocket.Conn) {
 	//TODO: close if previous go routine is running
-
-	var topic string
-	logger.Printf("HERE")
-	err := websocket.Message.Receive(ws, &topic)
-	if err == io.EOF {
-		logger.Printf("EOF")
-		return
-	}
-	if err != nil {
-		logger.Printf("Error reading from websocket: %s", err.Error())
-		return
-	}
-	logger.Printf("Poll Topic %s", topic)
-
-	topicDataChan := make(chan string)
 	closeChan := make(chan struct{})
-	go kafka.Poll(topic, topicDataChan, closeChan) // poll for current topic metadata
-	defer func() {
-		closeChan <- struct{}{}
-	}()
+	openChan := make(chan struct{}, 1)
 
-	for {
-		topicData := <-topicDataChan
-		fmt.Printf("%+v", topicData)
-		io.Copy(ws, strings.NewReader(topicData))
+	return func(ws *websocket.Conn) {
+		// close previous polling
+		// ignore if there wasn't a previous polling
+		select {
+		case <-openChan:
+			logger.Printf("New topic with old open chan. Insert into close chan")
+			closeChan <- struct{}{}
+		default:
+			logger.Printf("No open chans yet for topic")
+		}
+		logger.Println("Insert into open chan")
+		openChan <- struct{}{}
+
+		// Get topic from websocket
+		var topic string
+		err := websocket.Message.Receive(ws, &topic)
+		if err == io.EOF {
+			logger.Println("websocket EOF")
+			return
+		}
+		if err != nil {
+			logger.Printf("Error reading from websocket: %s", err.Error())
+			return
+		}
+		logger.Printf("Poll Topic %s", topic)
+
+		// Poll that topic
+		topicDataChan := make(chan string)
+		go kafka.Poll(topic, topicDataChan, closeChan) // poll for current topic metadata
+		/*
+			defer func() {
+				logger.Println("close chan defer")
+				closeChan <- struct{}{}
+			}()
+		*/
+
+		// Send polling results back through websocket
+		for {
+			select {
+			case topicData := <-topicDataChan:
+				fmt.Printf("%+v\n", topicData)
+				io.Copy(ws, strings.NewReader(topicData))
+			case <-closeChan:
+				logger.Printf("close chan case in poll topic %s", topic)
+				return
+			}
+		}
 	}
 }
 
@@ -76,7 +101,7 @@ func main() {
 	rtc.HandleFunc("/topics/{topic}/{partition}/{offsetRange}", consumerHandler) // get data
 	rtc.HandleFunc("/topics/{topic}", producerHandler)                           // insert data
 	rtc.HandleFunc("/topics", topicDataHandler)                                  // get metadata
-	rtc.Handle("/echo", websocket.Handler(EchoServer))
+	rtc.Handle("/topics/{topic}/poll", websocket.Handler(pollTopic()))
 	rtc.PathPrefix("/").Handler(http.FileServer(http.Dir("./web/kafka_viz")))
 
 	bind := fmt.Sprintf("%s:%s", conf.host, conf.port)
@@ -271,6 +296,12 @@ func (kc kafkaConfig) Poll(topic string, topicDataChan chan string, closeChan ch
 
 			topicDataChan <- string(metadataResponse[:])
 
+			// Return if closeChan has an item
+			select {
+			case <-closeChan:
+				return
+			default:
+			}
 		}
 	}()
 	time.Sleep(time.Millisecond * 10000)

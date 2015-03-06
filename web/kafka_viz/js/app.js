@@ -8,10 +8,9 @@ $(document).ready(function(){
   });
 })
 
-
 var pollTopic = function(currentTopic) {
   console.log("Poll topic: %s", currentTopic)
-  var exampleSocket = new WebSocket("ws://localhost:8090/echo");
+  var exampleSocket = new WebSocket("ws://localhost:8090/topics/"+currentTopic+"/poll");
 
   exampleSocket.onopen = function (event) {
     if (currentTopic !== "") {
@@ -26,9 +25,6 @@ var pollTopic = function(currentTopic) {
     showPartitions(data, left);
   }
 }
-
-
-
 
 var showTopicDropdown = function() {
   $("#topics").show();
