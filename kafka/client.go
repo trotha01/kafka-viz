@@ -1,51 +1,90 @@
 package client
 
 import (
+	"encoding/json"
 	"fmt"
+	"os/exec"
+	"time"
 
 	"github.com/shopify/sarama"
 )
 
-var kafka kafkaConfig
+// var kafka KafkaConfig
 
-type metadataResponse struct {
-	Result []topicMetadata `json:"result"`
+type MetadataResponse struct {
+	Result []TopicMetadata `json:"result"`
 }
 
-type kafkaConfig struct {
-	binDir    string
-	configDir string
-	broker    string
+type KafkaConfig struct {
+	// binDir    string
+	// configDir string
+	broker   *sarama.Broker
+	client   *sarama.Client
+	producer *sarama.Producer
 }
 
-func newKafka(binDir, configDir string) kafkaConfig {
-	kc := kafkaConfig{}
-	kc.binDir = binDir
-	kc.configDir = configDir
-	kc.broker = "localhost:9092"
-	return kc
-}
+func NewKafka(kafkaHost string, kafkaPort string) (*KafkaConfig, error) {
+	kc := KafkaConfig{}
+	// kc.binDir = conf.kafkaBinDir
+	// kc.configDir = conf.kafkaConfigDir
 
-func (kc kafkaConfig) Metadata() ([]topicMetadata, error) {
-	broker := sarama.NewBroker(kc.broker)
-	err := broker.Open(nil)
-	if err != nil {
-		return nil, err
-	}
-	defer broker.Close()
-
-	// TODO: configurable topic
-	request := sarama.MetadataRequest{Topics: []string{"test"}}
-	response, err := broker.GetMetadata("myClient", &request)
+	broker := kafkaHost + ":" + kafkaPort
+	//zookeeper = 2181
+	kc.broker = sarama.NewBroker(broker)
+	err := kc.broker.Open(nil)
 	if err != nil {
 		return nil, err
 	}
 
-	fmt.Println("There are", len(response.Topics), "topics active in the cluster.")
+	kc.client, err = sarama.NewClient("client_id", []string{broker}, sarama.NewClientConfig())
+	if err != nil {
+		return nil, err
+	}
 
-	metadata := make([]topicMetadata, len(response.Topics))
+	kc.producer, err = sarama.NewProducer(kc.client, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return &kc, nil
+}
+
+/*
+   {
+       "result": [
+           { "name" : "topic1",
+             "paritions" : 4,
+             "replication" : 3,
+             "partition_info" : [
+                   {"length": 24},
+                   {"length": 25},
+                   {"length": 22},
+                   {"length": 24}
+             ]
+           },
+           { "name" : "topic2",
+             "replication" : 5,
+             "paritions" : 1,
+             "partition_info" : [
+                   {"length": 103}
+             ]
+           }
+       ]
+   }
+*/
+func (kc KafkaConfig) Metadata(topics []string) ([]TopicMetadata, error) {
+	request := sarama.MetadataRequest{}
+	if len(topics) != 0 {
+		request.Topics = topics
+	}
+
+	response, err := kc.broker.GetMetadata("myClient", &request)
+	if err != nil {
+		return nil, err
+	}
+
+	metadata := make([]TopicMetadata, len(response.Topics))
 	for i, topic := range response.Topics {
-		fmt.Println("topic name: " + topic.Name)
 		metadata[i].Name = topic.Name
 		metadata[i].Partitions = len(topic.Partitions)
 		metadata[i].Partition_info = make([]partitionMetadata, len(topic.Partitions))
@@ -62,23 +101,17 @@ func (kc kafkaConfig) Metadata() ([]topicMetadata, error) {
 			metadata[i].Partition_info[j] = *partitionInfo
 		}
 	}
-	fmt.Println(metadata)
 	return metadata, nil
 }
 
 type partitionMetadata struct {
 	Length int64 `json:"length"`
+	Id     int32 `json:"id"`
 }
 
 // Sarama requires a partition?
-func (kc kafkaConfig) TopicReplicationFactor(topic string, partition int32) (int, error) {
-	client, err := sarama.NewClient("client_id", []string{kc.broker}, sarama.NewClientConfig())
-	if err != nil {
-		return -1, err
-	}
-	defer client.Close()
-
-	replicaIDs, err := client.Replicas(topic, partition)
+func (kc KafkaConfig) TopicReplicationFactor(topic string, partition int32) (int, error) {
+	replicaIDs, err := kc.client.Replicas(topic, partition)
 	if err != nil {
 		return -1, err
 	}
@@ -86,52 +119,26 @@ func (kc kafkaConfig) TopicReplicationFactor(topic string, partition int32) (int
 
 }
 
-func (kc kafkaConfig) PartitionMetadata(topic string, partition int32) (*partitionMetadata, error) {
-	client, err := sarama.NewClient("client_id", []string{kc.broker}, sarama.NewClientConfig())
-	if err != nil {
-		return nil, err
-	}
-	defer client.Close()
-
-	latestOffset, err := client.GetOffset(topic, partition, sarama.LatestOffsets)
+func (kc KafkaConfig) PartitionMetadata(topic string, partition int32) (*partitionMetadata, error) {
+	latestOffset, err := kc.client.GetOffset(topic, partition, sarama.LatestOffsets)
 	if err != nil {
 		return nil, err
 	}
 
-	return &partitionMetadata{Length: latestOffset}, nil
+	return &partitionMetadata{Length: latestOffset, Id: partition}, nil
 }
 
-func (kc kafkaConfig) Produce(message string, topic string) {
-	client, err := sarama.NewClient("client_id", []string{kc.broker}, sarama.NewClientConfig())
-	if err != nil {
-		panic(err)
-	}
-	defer client.Close()
-
-	producer, err := sarama.NewProducer(client, nil)
-	if err != nil {
-		panic(err)
-	}
-	defer producer.Close()
-
-	producer.Input() <- &sarama.ProducerMessage{Topic: topic, Key: nil, Value: sarama.StringEncoder(message)}
+func (kc KafkaConfig) Produce(message string, topic string) {
+	kc.producer.Input() <- &sarama.ProducerMessage{Topic: topic, Key: nil, Value: sarama.StringEncoder(message)}
 }
 
-func (kc kafkaConfig) consumeOffsets(offset int, offsetCount int, topic string, partition int) ([]string, error) {
-	broker := sarama.NewBroker(kc.broker)
-	err := broker.Open(nil)
-	if err != nil {
-		return nil, err
-	}
-	defer broker.Close()
+type kafkaMessage struct {
+	Offset  int64  `json:"offset"`
+	Message string `json:"message"`
+}
 
-	client, err := sarama.NewClient("client_id", []string{broker.Addr()}, nil)
-	if err != nil {
-		return nil, err
-	}
-	defer client.Close()
-
-	master, err := sarama.NewConsumer(client, nil)
+func (kc KafkaConfig) ConsumeOffsets(offset int, offsetCount int, topic string, partition int) ([]kafkaMessage, error) {
+	master, err := sarama.NewConsumer(kc.client, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -144,13 +151,13 @@ func (kc kafkaConfig) consumeOffsets(offset int, offsetCount int, topic string, 
 		return nil, err
 	}
 
-	result := make([]string, offsetCount)
+	result := make([]kafkaMessage, offsetCount)
 	var value string
 	for i := 0; i < offsetCount; i++ {
 		select {
 		case message := <-consumer.Messages():
 			value = string(message.Value[:])
-			result[i] = value
+			result[i] = kafkaMessage{Message: value, Offset: message.Offset}
 		case err := <-consumer.Errors():
 			return nil, err
 		}
@@ -159,9 +166,105 @@ func (kc kafkaConfig) consumeOffsets(offset int, offsetCount int, topic string, 
 }
 
 // Returns metadata about kafka
-type topicMetadata struct {
+type TopicMetadata struct {
 	Name           string              `json:"name"`
 	Partitions     int                 `json:"partitions"`
 	Replication    int                 `json:"replication"`
 	Partition_info []partitionMetadata `json:"partition_info"`
+}
+
+func (kc KafkaConfig) Close() {
+	kc.broker.Close()
+	kc.client.Close()
+	kc.producer.Close()
+
+	/*
+		zkCmd = exec.Command("/bin/sh", "-c", kc.binDir+"/zookeeper-server-stop.sh "+kc.configDir+"/zookeeper.properties")
+		kfCmd = exec.Command("/bin/sh", "-c", kc.binDir+"/kafka-server-stop.sh "+kc.configDir+"/server.properties")
+
+		err := kfCmd.Start()
+		if err != nil {
+			logger.Printf("Zookeeper exit: %s", err.Error())
+		}
+		err = zkCmd.Start()
+		if err != nil {
+			logger.Printf("Zookeeper exit: %s", err.Error())
+		}
+	*/
+}
+
+func (kc KafkaConfig) Poll(topic string, topicDataChan chan string, closeChan chan struct{}) {
+	fmt.Printf("Polling Topic: %s", topic)
+	ticker := time.NewTicker(time.Millisecond * 1000)
+	go func() {
+		for _ = range ticker.C {
+			metadataResponse, err := kc.TopicDataResponse([]string{topic})
+			if err != nil {
+				fmt.Printf("Error polling topic for metadata: %s", err.Error())
+				return
+			}
+
+			topicDataChan <- string(metadataResponse[:])
+
+			// Return if closeChan has an item
+			select {
+			case <-closeChan:
+				return
+			default:
+			}
+		}
+	}()
+	time.Sleep(time.Millisecond * 10000)
+	ticker.Stop()
+	fmt.Println("Ticker stopped")
+}
+
+func (kc KafkaConfig) TopicDataResponse(topics []string) ([]byte, error) {
+	metadata, err := kc.Metadata(topics)
+	if err != nil {
+		return nil, err
+	}
+
+	metadataResponse := MetadataResponse{}
+	metadataResponse.Result = metadata
+
+	response, err := json.Marshal(metadataResponse)
+	if err != nil {
+		return nil, err
+	}
+
+	return response, nil
+}
+
+var zkCmd *exec.Cmd
+var kfCmd *exec.Cmd
+
+func (kc KafkaConfig) Run() {
+	/*
+		logger.Println("Running kafka")
+		logger.Println(kc.binDir + "/zookeeper-server-start.sh " + kc.configDir + "/zookeeper.properties")
+		logger.Println(kc.binDir + "/kafka-server-start.sh " + kc.configDir + "/server.properties")
+
+		zkCmd = exec.Command("/bin/sh", "-c", kc.binDir+"/zookeeper-server-start.sh "+kc.configDir+"/zookeeper.properties")
+		kfCmd = exec.Command("/bin/sh", "-c", kc.binDir+"/kafka-server-start.sh "+kc.configDir+"/server.properties")
+
+		zkCmd.Stdout = os.Stdout
+		kfCmd.Stdout = os.Stdout
+
+			err := zkCmd.Start()
+			if err != nil {
+				logger.Printf("Error running Zookeeper: %s", err.Error())
+			}
+
+			time.Sleep(20 * time.Second)
+
+			err = kfCmd.Start()
+			if err != nil {
+				logger.Printf("Error running Kafka: %s", err.Error())
+			}
+
+			time.Sleep(20 * time.Second)
+	*/
+	// kc.consumeOffsets(0, 10, "test", 0)
+	// kc.Produce("from a function!", "test")
 }

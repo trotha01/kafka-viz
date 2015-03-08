@@ -11,7 +11,7 @@ Start up zookeeper and kafka
 
 ```
 $ source example.conf
-$ go run kafka-viz.go
+$ go run main.go
 ```
 
 Open browser to localhost:8090
