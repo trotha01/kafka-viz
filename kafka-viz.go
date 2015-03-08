@@ -10,9 +10,11 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/shopify/sarama"
+	"golang.org/x/net/websocket"
 )
 
 var chttp = http.NewServeMux()
@@ -35,6 +37,62 @@ func init() {
 	initializeLogger()
 }
 
+// Echo the data received on the WebSocket.
+func pollTopic() func(*websocket.Conn) {
+	//TODO: close if previous go routine is running
+	closeChan := make(chan struct{})
+	openChan := make(chan struct{}, 1)
+
+	return func(ws *websocket.Conn) {
+		// close previous polling
+		// ignore if there wasn't a previous polling
+		select {
+		case <-openChan:
+			logger.Printf("New topic with old open chan. Insert into close chan")
+			closeChan <- struct{}{}
+		default:
+			logger.Printf("No open chans yet for topic")
+		}
+		logger.Println("Insert into open chan")
+		openChan <- struct{}{}
+
+		// Get topic from websocket
+		var topic string
+		err := websocket.Message.Receive(ws, &topic)
+		if err == io.EOF {
+			logger.Println("websocket EOF")
+			return
+		}
+		if err != nil {
+			logger.Printf("Error reading from websocket: %s", err.Error())
+			return
+		}
+		logger.Printf("Poll Topic %s", topic)
+
+		// Poll that topic
+		topicDataChan := make(chan string)
+		go kafka.Poll(topic, topicDataChan, closeChan) // poll for current topic metadata
+		/*
+			defer func() {
+				logger.Println("close chan defer")
+				closeChan <- struct{}{}
+			}()
+		*/
+
+		// Send polling results back through websocket
+		for {
+			select {
+			case topicData := <-topicDataChan:
+				fmt.Printf("%+v\n", topicData)
+				io.Copy(ws, strings.NewReader(topicData))
+			case <-closeChan:
+				logger.Printf("close chan case in poll topic %s", topic)
+				return
+			}
+		}
+	}
+}
+
 var kafka kafkaConfig
 
 func main() {
@@ -43,6 +101,7 @@ func main() {
 	rtc.HandleFunc("/topics/{topic}/{partition}/{offsetRange}", consumerHandler) // get data
 	rtc.HandleFunc("/topics/{topic}", producerHandler)                           // insert data
 	rtc.HandleFunc("/topics", topicDataHandler)                                  // get metadata
+	rtc.Handle("/topics/{topic}/poll", websocket.Handler(pollTopic()))
 	rtc.PathPrefix("/").Handler(http.FileServer(http.Dir("./web/kafka_viz")))
 
 	bind := fmt.Sprintf("%s:%s", conf.host, conf.port)
@@ -92,21 +151,31 @@ func topicDataHandler(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 	topics := r.Form["topic"]
 
-	metadata, err := kafka.Metadata(topics)
+	metadataResponse, err := topicDataResponse(topics)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprintf(w, string(metadataResponse[:]))
+}
+
+func topicDataResponse(topics []string) ([]byte, error) {
+
+	metadata, err := kafka.Metadata(topics)
+	if err != nil {
+		return nil, err
 	}
 
 	metadataResponse := metadataResponse{}
 	metadataResponse.Result = metadata
+
 	response, err := json.Marshal(metadataResponse)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return nil, err
 	}
-	w.Header().Set("Content-Type", "application/json")
-	fmt.Fprintf(w, string(response[:]))
+
+	return response, nil
 }
 
 func producerHandler(w http.ResponseWriter, r *http.Request) {
@@ -213,6 +282,32 @@ func newKafka(binDir, configDir string) kafkaConfig {
 
 var zkCmd *exec.Cmd
 var kfCmd *exec.Cmd
+
+func (kc kafkaConfig) Poll(topic string, topicDataChan chan string, closeChan chan struct{}) {
+	fmt.Printf("Polling Topic: %s", topic)
+	ticker := time.NewTicker(time.Millisecond * 1000)
+	go func() {
+		for _ = range ticker.C {
+			metadataResponse, err := topicDataResponse([]string{topic})
+			if err != nil {
+				fmt.Printf("Error polling topic for metadata: %s", err.Error())
+				return
+			}
+
+			topicDataChan <- string(metadataResponse[:])
+
+			// Return if closeChan has an item
+			select {
+			case <-closeChan:
+				return
+			default:
+			}
+		}
+	}()
+	time.Sleep(time.Millisecond * 10000)
+	ticker.Stop()
+	fmt.Println("Ticker stopped")
+}
 
 func (kc kafkaConfig) Run() {
 	/*
@@ -322,7 +417,7 @@ func (kc kafkaConfig) Metadata(topics []string) ([]topicMetadata, error) {
 
 type partitionMetadata struct {
 	Length int64 `json:"length"`
-	Id int32 `json:"id"`
+	Id     int32 `json:"id"`
 }
 
 // Sarama requires a partition?
@@ -374,7 +469,12 @@ func (kc kafkaConfig) Produce(message string, topic string) {
 	producer.Input() <- &sarama.ProducerMessage{Topic: topic, Key: nil, Value: sarama.StringEncoder(message)}
 }
 
-func (kc kafkaConfig) consumeOffsets(offset int, offsetCount int, topic string, partition int) ([]string, error) {
+type kafkaMessage struct {
+	Offset  int64  `json:"offset"`
+	Message string `json:"message"`
+}
+
+func (kc kafkaConfig) consumeOffsets(offset int, offsetCount int, topic string, partition int) ([]kafkaMessage, error) {
 	broker := sarama.NewBroker(kc.broker)
 	err := broker.Open(nil)
 	if err != nil {
@@ -405,13 +505,13 @@ func (kc kafkaConfig) consumeOffsets(offset int, offsetCount int, topic string, 
 		return nil, err
 	}
 
-	result := make([]string, offsetCount)
+	result := make([]kafkaMessage, offsetCount)
 	var value string
 	for i := 0; i < offsetCount; i++ {
 		select {
 		case message := <-consumer.Messages():
 			value = string(message.Value[:])
-			result[i] = value
+			result[i] = kafkaMessage{Message: value, Offset: message.Offset}
 		case err := <-consumer.Errors():
 			logger.Printf("Consumer error. Error: %s", err.Error())
 			return nil, err
