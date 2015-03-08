@@ -274,6 +274,7 @@ type kafkaConfig struct {
 	configDir string
 	broker    *sarama.Broker
 	client    *sarama.Client
+	producer  *sarama.Producer
 }
 
 func newKafka(conf *config) kafkaConfig {
@@ -294,6 +295,12 @@ func newKafka(conf *config) kafkaConfig {
 	kc.client, err = sarama.NewClient("client_id", []string{broker}, sarama.NewClientConfig())
 	if err != nil {
 		logger.Printf("Error creating kafka client: %s", err.Error())
+		os.Exit(1)
+	}
+
+	kc.producer, err = sarama.NewProducer(kc.client, nil)
+	if err != nil {
+		logger.Printf("Error creating kafka producer: %s", err.Error())
 		os.Exit(1)
 	}
 
@@ -452,13 +459,7 @@ func (kc kafkaConfig) PartitionMetadata(topic string, partition int32) (*partiti
 }
 
 func (kc kafkaConfig) Produce(message string, topic string) {
-	producer, err := sarama.NewProducer(kc.client, nil)
-	if err != nil {
-		panic(err)
-	}
-	defer producer.Close()
-
-	producer.Input() <- &sarama.ProducerMessage{Topic: topic, Key: nil, Value: sarama.StringEncoder(message)}
+	kc.producer.Input() <- &sarama.ProducerMessage{Topic: topic, Key: nil, Value: sarama.StringEncoder(message)}
 }
 
 type kafkaMessage struct {
@@ -517,9 +518,10 @@ func initializeLogger() {
 }
 
 func (kc kafkaConfig) clean() {
-
 	kc.broker.Close()
 	kc.client.Close()
+	kc.producer.Close()
+
 	zkCmd = exec.Command("/bin/sh", "-c", kc.binDir+"/zookeeper-server-stop.sh "+kc.configDir+"/zookeeper.properties")
 	kfCmd = exec.Command("/bin/sh", "-c", kc.binDir+"/kafka-server-stop.sh "+kc.configDir+"/server.properties")
 
