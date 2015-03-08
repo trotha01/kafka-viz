@@ -7,8 +7,8 @@ A way to quickly and easily run, test, and visualize kafka
 
 Prerequisites
 ===
-[kafka](http://kafka.apache.org/downloads.html)
-[go](https://golang.org/doc/install)
+ - [kafka](http://kafka.apache.org/downloads.html)
+ - [go](https://golang.org/doc/install)
 
 QuickStart
 ===
@@ -25,7 +25,7 @@ Configuration
 ===
 Kafka-Viz can get it's configuration from the environment
 
-| env variable | default       | what it is                                                                  |
+| Env Variable | Default       | Use                                                                         |
 | ------------ | ------------- | ----------                                                                  |
 | HOST         | 127.0.0.1     | The host for http.ListenAndServe                                            |
 | PORT         | 8090          | The host for http.ListenAndServe                                            |
