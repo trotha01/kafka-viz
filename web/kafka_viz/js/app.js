@@ -9,7 +9,6 @@ $(document).ready(function(){
 })
 
 var pollTopic = function(currentTopic) {
-  console.log("Poll topic: %s", currentTopic)
   var exampleSocket = new WebSocket("ws://localhost:8090/topics/"+currentTopic+"/poll");
 
   exampleSocket.onopen = function (event) {
@@ -21,6 +20,7 @@ var pollTopic = function(currentTopic) {
   exampleSocket.onmessage = function (event) {
     data = JSON.parse(event.data);
     data = data.result[0];
+    console.log(data);
     left = $("#"+data.name+"Left");
     showPartitions(data, left);
   }

@@ -35,56 +35,6 @@ func init() {
 	initializeLogger()
 }
 
-// Echo the data received on the WebSocket.
-func pollTopic(kafka *client.KafkaConfig) func(*websocket.Conn) {
-	//TODO: close if previous go routine is running
-	closeChan := make(chan struct{})
-	openChan := make(chan struct{}, 1)
-
-	return func(ws *websocket.Conn) {
-		// close previous polling
-		// ignore if there wasn't a previous polling
-		select {
-		case <-openChan:
-			logger.Printf("New topic with old open chan. Insert into close chan")
-			closeChan <- struct{}{}
-		default:
-			logger.Printf("No open chans yet for topic")
-		}
-		logger.Println("Insert into open chan")
-		openChan <- struct{}{}
-
-		// Get topic from websocket
-		var topic string
-		err := websocket.Message.Receive(ws, &topic)
-		if err == io.EOF {
-			logger.Println("websocket EOF")
-			return
-		}
-		if err != nil {
-			logger.Printf("Error reading from websocket: %s", err.Error())
-			return
-		}
-		logger.Printf("Poll Topic %s", topic)
-
-		// Poll that topic
-		topicDataChan := make(chan string)
-		go kafka.Poll(topic, topicDataChan, closeChan) // poll for current topic metadata
-
-		// Send polling results back through websocket
-		for {
-			select {
-			case topicData := <-topicDataChan:
-				fmt.Printf("%+v\n", topicData)
-				io.Copy(ws, strings.NewReader(topicData))
-			case <-closeChan:
-				logger.Printf("close chan case in poll topic %s", topic)
-				return
-			}
-		}
-	}
-}
-
 func main() {
 	rtc := mux.NewRouter()
 
@@ -215,6 +165,53 @@ func consumerHandler(kafka *client.KafkaConfig) func(w http.ResponseWriter, r *h
 
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprintf(w, string(response))
+	}
+}
+
+// Echo the data received on the WebSocket.
+func pollTopic(kafka *client.KafkaConfig) func(*websocket.Conn) {
+	closeChan := make(chan struct{})
+	openChan := make(chan struct{}, 1)
+
+	return func(ws *websocket.Conn) {
+		// close previous polling
+		// ignore if there wasn't a previous polling
+		select {
+		case <-openChan:
+			logger.Printf("New polling request. Close previous polling")
+			closeChan <- struct{}{}
+		default:
+		}
+		openChan <- struct{}{}
+
+		// Get topic from websocket
+		var topic string
+		err := websocket.Message.Receive(ws, &topic)
+		if err == io.EOF {
+			logger.Println("polling websocket EOF")
+			return
+		}
+		if err != nil {
+			logger.Printf("Error reading from websocket: %s", err.Error())
+			return
+		}
+		logger.Printf("Poll Topic %s", topic)
+
+		// Poll that topic
+		topicDataChan := make(chan string)
+		go kafka.Poll(topic, topicDataChan, closeChan) // poll for current topic metadata
+
+		// Send polling results back through websocket
+		for {
+			select {
+			case topicData := <-topicDataChan:
+				io.Copy(ws, strings.NewReader(topicData))
+			case <-closeChan:
+				logger.Printf("polling stopped for topic %s", topic)
+				return
+
+			}
+		}
 	}
 }
 

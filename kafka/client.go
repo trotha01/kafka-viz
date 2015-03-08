@@ -194,7 +194,6 @@ func (kc KafkaConfig) Close() {
 }
 
 func (kc KafkaConfig) Poll(topic string, topicDataChan chan string, closeChan chan struct{}) {
-	fmt.Printf("Polling Topic: %s", topic)
 	ticker := time.NewTicker(time.Millisecond * 1000)
 	go func() {
 		for _ = range ticker.C {
