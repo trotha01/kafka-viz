@@ -26,6 +26,8 @@ type config struct {
 	logFile        string
 	kafkaBinDir    string
 	kafkaConfigDir string
+	kafkaHost      string
+	kafkaPort      string
 }
 
 var conf *config
@@ -72,12 +74,6 @@ func pollTopic() func(*websocket.Conn) {
 		// Poll that topic
 		topicDataChan := make(chan string)
 		go kafka.Poll(topic, topicDataChan, closeChan) // poll for current topic metadata
-		/*
-			defer func() {
-				logger.Println("close chan defer")
-				closeChan <- struct{}{}
-			}()
-		*/
 
 		// Send polling results back through websocket
 		for {
@@ -107,7 +103,7 @@ func main() {
 	bind := fmt.Sprintf("%s:%s", conf.host, conf.port)
 	logger.Printf("Listening on %s...", bind)
 
-	kafka = newKafka(conf.kafkaBinDir, conf.kafkaConfigDir)
+	kafka = newKafka(conf)
 	// kafka.Run()
 
 	err := http.ListenAndServe(bind, rtc)
@@ -125,6 +121,8 @@ func configFromEnv() {
 	conf.port = os.Getenv("PORT")
 	conf.logDir = os.Getenv("LOG_DIR")
 	conf.logFile = os.Getenv("LOG_FILE")
+	conf.kafkaHost = os.Getenv("KAFKA_HOST")
+	conf.kafkaPort = os.Getenv("KAFKA_PORT")
 	conf.kafkaBinDir = os.Getenv("KAFKA_BIN_DIR")
 	conf.kafkaConfigDir = os.Getenv("KAFKA_CONFIG_DIR")
 
@@ -140,6 +138,12 @@ func configFromEnv() {
 	}
 	if conf.logFile == "" {
 		conf.logFile = "STDOUT"
+	}
+	if conf.kafkaHost == "" {
+		conf.kafkaHost = "localhost"
+	}
+	if conf.kafkaPort == "" {
+		conf.kafkaPort = "9092"
 	}
 }
 
@@ -268,15 +272,31 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 type kafkaConfig struct {
 	binDir    string
 	configDir string
-	broker    string
+	broker    *sarama.Broker
+	client    *sarama.Client
 }
 
-func newKafka(binDir, configDir string) kafkaConfig {
+func newKafka(conf *config) kafkaConfig {
 	kc := kafkaConfig{}
-	kc.binDir = binDir
-	kc.configDir = configDir
-	kc.broker = "localhost:9092"
+	kc.binDir = conf.kafkaBinDir
+	kc.configDir = conf.kafkaConfigDir
+	kc.configDir = conf.kafkaConfigDir
+
+	broker := conf.kafkaHost + ":" + conf.kafkaPort
 	//zookeeper = 2181
+	kc.broker = sarama.NewBroker(broker)
+	err := kc.broker.Open(nil)
+	if err != nil {
+		logger.Printf("Error connecting to kafka broker: %s", err.Error())
+		os.Exit(1)
+	}
+
+	kc.client, err = sarama.NewClient("client_id", []string{broker}, sarama.NewClientConfig())
+	if err != nil {
+		logger.Printf("Error creating kafka client: %s", err.Error())
+		os.Exit(1)
+	}
+
 	return kc
 }
 
@@ -372,21 +392,12 @@ type topicMetadata struct {
 */
 
 func (kc kafkaConfig) Metadata(topics []string) ([]topicMetadata, error) {
-	broker := sarama.NewBroker(kc.broker)
-	err := broker.Open(nil)
-	if err != nil {
-		logger.Printf("Error opening broker: %s", err.Error())
-		return nil, err
-	}
-	defer broker.Close()
-
-	// TODO: configurable topic
 	request := sarama.MetadataRequest{}
 	if len(topics) != 0 {
 		request.Topics = topics
 	}
 
-	response, err := broker.GetMetadata("myClient", &request)
+	response, err := kc.broker.GetMetadata("myClient", &request)
 	if err != nil {
 		logger.Printf("Error getting metadata from broker: %s", err.Error())
 		return nil, err
@@ -422,13 +433,7 @@ type partitionMetadata struct {
 
 // Sarama requires a partition?
 func (kc kafkaConfig) TopicReplicationFactor(topic string, partition int32) (int, error) {
-	client, err := sarama.NewClient("client_id", []string{kc.broker}, sarama.NewClientConfig())
-	if err != nil {
-		return -1, err
-	}
-	defer client.Close()
-
-	replicaIDs, err := client.Replicas(topic, partition)
+	replicaIDs, err := kc.client.Replicas(topic, partition)
 	if err != nil {
 		return -1, err
 	}
@@ -437,14 +442,7 @@ func (kc kafkaConfig) TopicReplicationFactor(topic string, partition int32) (int
 }
 
 func (kc kafkaConfig) PartitionMetadata(topic string, partition int32) (*partitionMetadata, error) {
-	client, err := sarama.NewClient("client_id", []string{kc.broker}, sarama.NewClientConfig())
-	if err != nil {
-		logger.Printf("Error creating sarama client: %s", err.Error())
-		return nil, err
-	}
-	defer client.Close()
-
-	latestOffset, err := client.GetOffset(topic, partition, sarama.LatestOffsets)
+	latestOffset, err := kc.client.GetOffset(topic, partition, sarama.LatestOffsets)
 	if err != nil {
 		logger.Printf("Error getting client offset: %s", err.Error())
 		return nil, err
@@ -454,13 +452,7 @@ func (kc kafkaConfig) PartitionMetadata(topic string, partition int32) (*partiti
 }
 
 func (kc kafkaConfig) Produce(message string, topic string) {
-	client, err := sarama.NewClient("client_id", []string{kc.broker}, sarama.NewClientConfig())
-	if err != nil {
-		panic(err)
-	}
-	defer client.Close()
-
-	producer, err := sarama.NewProducer(client, nil)
+	producer, err := sarama.NewProducer(kc.client, nil)
 	if err != nil {
 		panic(err)
 	}
@@ -475,22 +467,7 @@ type kafkaMessage struct {
 }
 
 func (kc kafkaConfig) consumeOffsets(offset int, offsetCount int, topic string, partition int) ([]kafkaMessage, error) {
-	broker := sarama.NewBroker(kc.broker)
-	err := broker.Open(nil)
-	if err != nil {
-		logger.Printf("Error opening sarama broker. Error: %s", err.Error())
-		return nil, err
-	}
-	defer broker.Close()
-
-	client, err := sarama.NewClient("client_id", []string{broker.Addr()}, nil)
-	if err != nil {
-		logger.Printf("Error creating sarama client: " + err.Error())
-		return nil, err
-	}
-	defer client.Close()
-
-	master, err := sarama.NewConsumer(client, nil)
+	master, err := sarama.NewConsumer(kc.client, nil)
 	if err != nil {
 		logger.Printf("Error creating sarama consumer: " + err.Error())
 		return nil, err
@@ -520,25 +497,6 @@ func (kc kafkaConfig) consumeOffsets(offset int, offsetCount int, topic string, 
 	return result, nil
 }
 
-func (kc kafkaConfig) addTopic(topic string) error {
-	broker := sarama.NewBroker(kc.broker)
-	err := broker.Open(nil)
-	if err != nil {
-		logger.Printf("Error opening sarama broker. Error: %s", err.Error())
-		return err
-	}
-	defer broker.Close()
-
-	client, err := sarama.NewClient("client_id", []string{broker.Addr()}, nil)
-	if err != nil {
-		logger.Printf("Error creating sarama client: " + err.Error())
-		return err
-	}
-	defer client.Close()
-
-	return nil
-}
-
 func initializeLogger() {
 	var logWriter io.Writer
 	var err error
@@ -559,6 +517,9 @@ func initializeLogger() {
 }
 
 func (kc kafkaConfig) clean() {
+
+	kc.broker.Close()
+	kc.client.Close()
 	zkCmd = exec.Command("/bin/sh", "-c", kc.binDir+"/zookeeper-server-stop.sh "+kc.configDir+"/zookeeper.properties")
 	kfCmd = exec.Command("/bin/sh", "-c", kc.binDir+"/kafka-server-stop.sh "+kc.configDir+"/server.properties")
 
