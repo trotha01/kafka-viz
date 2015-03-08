@@ -113,38 +113,6 @@ func main() {
 	}
 }
 
-func configFromEnv() {
-	conf = new(config)
-	conf.host = os.Getenv("HOST")
-	conf.port = os.Getenv("PORT")
-	conf.logDir = os.Getenv("LOG_DIR")
-	conf.logFile = os.Getenv("LOG_FILE")
-	conf.kafkaHost = os.Getenv("KAFKA_HOST")
-	conf.kafkaPort = os.Getenv("KAFKA_PORT")
-	conf.kafkaBinDir = os.Getenv("KAFKA_BIN_DIR")
-	conf.kafkaConfigDir = os.Getenv("KAFKA_CONFIG_DIR")
-
-	// defaults
-	if conf.host == "" {
-		conf.host = "127.0.0.1"
-	}
-	if conf.port == "" {
-		conf.port = "8090"
-	}
-	if conf.logDir == "" {
-		conf.logDir = "."
-	}
-	if conf.logFile == "" {
-		conf.logFile = "STDOUT"
-	}
-	if conf.kafkaHost == "" {
-		conf.kafkaHost = "localhost"
-	}
-	if conf.kafkaPort == "" {
-		conf.kafkaPort = "9092"
-	}
-}
-
 func topicDataHandler(kafka *client.KafkaConfig) func(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("here\n")
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -177,14 +145,43 @@ func producerHandler(kafka *client.KafkaConfig) func(w http.ResponseWriter, r *h
 	}
 }
 
+func offsetRangeFromString(offsetRange string) (int, int, error) {
+	if strings.Contains(offsetRange, "-") {
+		parsedRange := strings.Split(offsetRange, "-")
+		offsetStart, err := strconv.Atoi(parsedRange[0])
+		if err != nil {
+			return -1, -1, err
+		}
+
+		offsetEnd, err := strconv.Atoi(parsedRange[1])
+		if err != nil {
+			return -1, -1, err
+		}
+
+		offsetLength := offsetEnd - offsetStart + 1
+		if offsetLength < 0 {
+			offsetLength = -offsetLength
+		}
+		return offsetStart, offsetLength, nil
+	}
+
+	offsetLength := 1
+	offsetStart, err := strconv.Atoi(offsetRange)
+	if err != nil {
+		return -1, -1, err
+	}
+	return offsetStart, offsetLength, nil
+
+}
+
 func consumerHandler(kafka *client.KafkaConfig) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		logger.Printf("Consume Data Request")
 		params := mux.Vars(r)
 		topic := params["topic"]
 		partitionStr := params["partition"]
-
 		offsetRange := params["offsetRange"]
+
 		logger.Printf("Topic: "+topic+" Partition: "+partitionStr, "OffsetRange: "+offsetRange)
 
 		partition, err := strconv.Atoi(partitionStr)
@@ -192,52 +189,64 @@ func consumerHandler(kafka *client.KafkaConfig) func(w http.ResponseWriter, r *h
 			logger.Printf("Invalid partition: %s", partitionStr)
 			logger.Printf("Invalid partition error: %s", err.Error())
 			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
 		}
 
-		var offsetStart int
-		var offsetLength int
-
-		if strings.Contains(offsetRange, "-") {
-			parsedRange := strings.Split(offsetRange, "-")
-			offsetStart, err = strconv.Atoi(parsedRange[0])
-			if err != nil {
-				logger.Printf("Invalid offset start in range: %s", offsetRange)
-				logger.Printf("Invalid offset start error: %s", err.Error())
-				http.Error(w, err.Error(), http.StatusBadRequest)
-			}
-
-			offsetEnd, err := strconv.Atoi(parsedRange[1])
-			if err != nil {
-				logger.Printf("Invalid offset end in range: %s", offsetRange)
-				logger.Printf("Invalid offset end error: %s", err.Error())
-				http.Error(w, err.Error(), http.StatusBadRequest)
-			}
-
-			offsetLength = offsetEnd - offsetStart + 1
-			if offsetLength < 0 {
-				offsetLength = -offsetLength
-			}
-		} else {
-			offsetLength = 1
-			offsetStart, err = strconv.Atoi(offsetRange)
-			if err != nil {
-				logger.Printf("Invalid offset: %s", offsetRange)
-				logger.Printf("Invalid offset error: %s", err.Error())
-				http.Error(w, err.Error(), http.StatusBadRequest)
-			}
+		offsetStart, offsetLength, err := offsetRangeFromString(offsetRange)
+		if err != nil {
+			logger.Printf("Invalid partition range: %s", offsetRange)
+			logger.Printf("Invalid partition error: %s", err.Error())
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
 		}
 
 		data, err := kafka.ConsumeOffsets(offsetStart, offsetLength, topic, partition)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
+
 		response, err := json.Marshal(data)
 		if err != nil {
 			logger.Printf("Error consuming from kafka. Err: %s", err.Error())
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
+
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprintf(w, string(response))
+	}
+}
+
+func configFromEnv() {
+	conf = new(config)
+	conf.host = os.Getenv("HOST")
+	conf.port = os.Getenv("PORT")
+	conf.logDir = os.Getenv("LOG_DIR")
+	conf.logFile = os.Getenv("LOG_FILE")
+	conf.kafkaHost = os.Getenv("KAFKA_HOST")
+	conf.kafkaPort = os.Getenv("KAFKA_PORT")
+	conf.kafkaBinDir = os.Getenv("KAFKA_BIN_DIR")
+	conf.kafkaConfigDir = os.Getenv("KAFKA_CONFIG_DIR")
+
+	// defaults
+	if conf.host == "" {
+		conf.host = "127.0.0.1"
+	}
+	if conf.port == "" {
+		conf.port = "8090"
+	}
+	if conf.logDir == "" {
+		conf.logDir = "."
+	}
+	if conf.logFile == "" {
+		conf.logFile = "STDOUT"
+	}
+	if conf.kafkaHost == "" {
+		conf.kafkaHost = "localhost"
+	}
+	if conf.kafkaPort == "" {
+		conf.kafkaPort = "9092"
 	}
 }
 
