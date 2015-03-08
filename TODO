@@ -2,3 +2,4 @@ Integrate searchlight
 Add command line version
 Prettify ui
 Show lag
+update to gorilla mux websocket (less libraries to import)
