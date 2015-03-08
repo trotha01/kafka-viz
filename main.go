@@ -15,8 +15,6 @@ import (
 	"golang.org/x/net/websocket"
 )
 
-var chttp = http.NewServeMux()
-
 type config struct {
 	host           string
 	port           string
@@ -241,18 +239,6 @@ func consumerHandler(kafka *client.KafkaConfig) func(w http.ResponseWriter, r *h
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprintf(w, string(response))
 	}
-}
-
-func HomeHandler(w http.ResponseWriter, r *http.Request) {
-	logger.Printf("Request /")
-	chttp.ServeHTTP(w, r)
-	/*
-		if strings.Contains(r.URL.Path, "/") {
-			chttp.ServeHTTP(w, r)
-		} else {
-			fmt.Fprintf(w, "HomeHandler")
-		}
-	*/
 }
 
 func initializeLogger() {
