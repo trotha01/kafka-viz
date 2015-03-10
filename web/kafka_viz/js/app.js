@@ -8,16 +8,36 @@ $(document).ready(function(){
   });
 })
 
-var pollTopic = function(currentTopic) {
-  var exampleSocket = new WebSocket("ws://localhost:8090/topics/"+currentTopic+"/poll");
+var searchTopic = function(currentTopic, keyword) {
+  var searchSocket = new WebSocket("ws://localhost:8090/topics/socket/"+currentTopic+"/"+encodeURIComponent(keyword));
+  var topicSearchResults = $("#"+currentTopic+"SearchResults");
+  topicSearchResults.html("");
 
-  exampleSocket.onopen = function (event) {
+  searchSocket.onopen = function (event) {
+    if (currentTopic !== "" && keyword !== "") {
+        searchSocket.send(currentTopic);
+        searchSocket.send(keyword);
+    }
+  }
+
+  searchSocket.onmessage = function (event) {
+    console.log(event.data);
+    topicSearchResults.show();
+    topicSearchResults.append(event.data);
+    topicSearchResults.append("<br>");
+  }
+}
+
+var pollTopic = function(currentTopic) {
+  var topicSocket = new WebSocket("ws://localhost:8090/topics/"+currentTopic+"/poll");
+
+  topicSocket.onopen = function (event) {
     if (currentTopic !== "") {
-      exampleSocket.send(currentTopic);
+      topicSocket.send(currentTopic);
     }
   };
 
-  exampleSocket.onmessage = function (event) {
+  topicSocket.onmessage = function (event) {
     data = JSON.parse(event.data);
     data = data.result[0];
     console.log(data);
@@ -201,6 +221,16 @@ var showTopicData = function(topic) {
   var newAddButton = $( "<div class='partitionButtons' /><a class='btn-floating btn-medium waves-effect waves-light lightteal'><i class='mdi-content-add'></i></a><br><br>");
   newSubTitle.append("<h6>"+"partition(s): "+partitionNum+",  "+"replication factor: "+replicationNum+"</h6>");
 
+  var topicSearch = $("<div><input type=text id='"+topicName+"Search' placeholder='searchTopic'></div>");
+  var topicSearchResults = $("<div id='"+topicName+"SearchResults' class='searchResults'></div>");
+  topicSearchResults.hide();
+  topicSearch.bind('keypress', topicSearchKeyPress(topic));
+  newSubTitle.append(topicSearch);
+  newSubTitle.append(topicSearchResults);
+
+  var newPartitionRange = $( "<div class='partitionRange'><input type=text id='"+topicName+"PartitionRange' placeholder='partition range'/></div>" );
+  newPartitionRange.bind('keypress', partitionRangeKeyPress(topic));
+
 
   showPartitions(topic, newLeft);
   pollTopic(topic.name);
@@ -228,3 +258,11 @@ var partitionRangeKeyPress = function(topic){
   }
 }
 
+var topicSearchKeyPress = function(topic){
+  return function(e) {
+    if(e.which === 13){
+      var keyword = $(this).children("input").val();
+      searchTopic(topic.name, keyword);
+    }
+  }
+}

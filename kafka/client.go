@@ -139,7 +139,7 @@ type kafkaMessage struct {
 	Message string `json:"message"`
 }
 
-func (kc KafkaConfig) SearchTopic(found chan string, topic string, keyword string) {
+func (kc KafkaConfig) SearchTopic(found chan string, stopSearch chan struct{}, topic string, keyword string) {
 	topicMetadata, err := kc.Metadata([]string{topic})
 	if err != nil {
 		return
@@ -150,17 +150,14 @@ func (kc KafkaConfig) SearchTopic(found chan string, topic string, keyword strin
 		wg.Add(1)
 		go func(partition int32) {
 			defer wg.Done()
-			kc.SearchPartition(found, keyword, topic, partition)
+			kc.SearchPartition(found, stopSearch, keyword, topic, partition)
 		}(partition.Id)
 	}
 
 	wg.Wait()
-	fmt.Println("Done waiting in searchTopic()")
 }
 
-func (kc KafkaConfig) SearchPartition(found chan string, keyword string, topic string, partition int32) {
-	fmt.Printf("Searching topic %s, partition %d for %s\n", topic, partition, keyword)
-
+func (kc KafkaConfig) SearchPartition(found chan string, stopSearch chan struct{}, keyword string, topic string, partition int32) {
 	partitionData, err := kc.PartitionMetadata(topic, partition)
 	if err != nil {
 		fmt.Println(err.Error())
@@ -191,10 +188,12 @@ func (kc KafkaConfig) SearchPartition(found chan string, keyword string, topic s
 				fmt.Println(err.Error())
 			}
 			if match {
-				found <- fmt.Sprintf("keyword found!\nmessage: %s\nkeyword: %s\n", string(message.Value), keyword)
+				found <- fmt.Sprintf("partition(%d) offset(%d) message: %s\n", partition, message.Offset, string(message.Value[:]))
 			}
 		case err = <-consumer.Errors():
 			fmt.Println(err.Error())
+			return
+		case <-stopSearch:
 			return
 		}
 	}

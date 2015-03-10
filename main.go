@@ -46,11 +46,11 @@ func main() {
 	}
 	defer kafka.Close()
 
-	rtc.HandleFunc("/topics", topicDataHandler(kafka))                                  // get metadata
-	rtc.Handle("/topics/{topic}/poll", websocket.Handler(pollTopic(kafka)))             // poll for topic metadata
-	rtc.HandleFunc("/topics/{topic}/{partition}/{offsetRange}", consumerHandler(kafka)) // get specific data
-	rtc.HandleFunc("/topics/{topic}/{keyword}", searchHandler(kafka))                   // search data
-	rtc.HandleFunc("/topics/{topic}", producerHandler(kafka))                           // insert data
+	rtc.HandleFunc("/topics", topicDataHandler(kafka))                                            // get metadata
+	rtc.Handle("/topics/{topic}/poll", websocket.Handler(pollTopic(kafka)))                       // poll for topic metadata
+	rtc.Handle("/topics/socket/{topic}/{keyword}", websocket.Handler(socketSearchHandler(kafka))) // search data
+	rtc.HandleFunc("/topics/{topic}/{partition}/{offsetRange}", consumerHandler(kafka))           // get specific data
+	rtc.HandleFunc("/topics/{topic}", producerHandler(kafka))                                     // insert data
 
 	rtc.PathPrefix("/").Handler(http.FileServer(http.Dir("./web/kafka_viz")))
 
@@ -77,40 +77,6 @@ func topicDataHandler(kafka *client.KafkaConfig) func(w http.ResponseWriter, r *
 
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprintf(w, string(metadataResponse[:]))
-	}
-}
-
-func searchHandler(kafka *client.KafkaConfig) func(w http.ResponseWriter, r *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
-		logger.Printf("Search Topic Request")
-		params := mux.Vars(r)
-		topic := params["topic"]
-		keyword := params["keyword"]
-		logger.Printf("Searching topic %s for %s", topic, keyword)
-		found := make(chan string)
-
-		var wg sync.WaitGroup
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			kafka.SearchTopic(found, topic, keyword)
-		}()
-
-		go func() {
-			for {
-				select {
-				case match := <-found:
-					fmt.Println("Match: ", match)
-					fmt.Fprintf(w, match)
-				default:
-				}
-			}
-		}()
-
-		wg.Wait()
-		fmt.Printf("Done searching Topic")
-		return
-
 	}
 }
 
@@ -200,6 +166,69 @@ func consumerHandler(kafka *client.KafkaConfig) func(w http.ResponseWriter, r *h
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprintf(w, string(response))
 	}
+}
+
+func socketSearchHandler(kafka *client.KafkaConfig) func(*websocket.Conn) {
+	return func(ws *websocket.Conn) {
+
+		// Get topic and search string from websocket
+		var topic string
+		var keyword string
+		err := websocket.Message.Receive(ws, &topic)
+		if err == io.EOF {
+			logger.Println("kafka search websocket EOF")
+			return
+		}
+		if err != nil {
+			logger.Printf("Error reading from websocket: %s", err.Error())
+			return
+		}
+
+		err = websocket.Message.Receive(ws, &keyword)
+		if err == io.EOF {
+			logger.Println("kafka search websocket EOF")
+			return
+		}
+		if err != nil {
+			logger.Printf("Error reading from websocket: %s", err.Error())
+			return
+		}
+
+		logger.Printf("Searching topic %s for %q", topic, keyword)
+		defer logger.Printf("Done searching topic %s for %q", topic, keyword)
+		found := make(chan string)
+		stopSearch := make(chan struct{})
+		isFound := false
+
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			kafka.SearchTopic(found, stopSearch, topic, keyword)
+		}()
+
+		go func() {
+			for {
+				select {
+				case match := <-found:
+					io.Copy(ws, strings.NewReader(match))
+					isFound = true
+				case <-stopSearch:
+					return
+				default:
+				}
+			}
+		}()
+
+		wg.Wait()
+		close(stopSearch)
+		close(found)
+		if !isFound {
+			io.Copy(ws, strings.NewReader("Not Found"))
+		}
+		return
+	}
+
 }
 
 // Echo the data received on the WebSocket.
