@@ -11,8 +11,6 @@ import (
 	"github.com/shopify/sarama"
 )
 
-// var kafka KafkaConfig
-
 type MetadataResponse struct {
 	Result []TopicMetadata `json:"result"`
 }
@@ -52,6 +50,7 @@ func NewKafka(kafkaHost string, kafkaPort string) (*KafkaConfig, error) {
 }
 
 /*
+  Example Metadata() response
    {
        "result": [
            { "name" : "topic1",
@@ -139,7 +138,7 @@ type kafkaMessage struct {
 	Message string `json:"message"`
 }
 
-func (kc KafkaConfig) SearchTopic(found chan string, stopSearch chan struct{}, topic string, keyword string) {
+func (kc KafkaConfig) SearchTopic(found chan MessageMatch, stopSearch chan struct{}, topic string, keyword string) {
 	topicMetadata, err := kc.Metadata([]string{topic})
 	if err != nil {
 		return
@@ -157,7 +156,15 @@ func (kc KafkaConfig) SearchTopic(found chan string, stopSearch chan struct{}, t
 	wg.Wait()
 }
 
-func (kc KafkaConfig) SearchPartition(found chan string, stopSearch chan struct{}, keyword string, topic string, partition int32) {
+type MessageMatch struct {
+	Keyword   string `json:"keyword"`
+	Message   string `json:"message"`
+	Topic     string `json:"topic"`
+	Partition int32  `json:"partition"`
+	Offset    int64  `json:"offset"`
+}
+
+func (kc KafkaConfig) SearchPartition(found chan MessageMatch, stopSearch chan struct{}, keyword string, topic string, partition int32) {
 	partitionData, err := kc.PartitionMetadata(topic, partition)
 	if err != nil {
 		fmt.Println(err.Error())
@@ -188,7 +195,13 @@ func (kc KafkaConfig) SearchPartition(found chan string, stopSearch chan struct{
 				fmt.Println(err.Error())
 			}
 			if match {
-				found <- fmt.Sprintf("partition(%d) offset(%d) message: %s\n", partition, message.Offset, string(message.Value[:]))
+				found <- MessageMatch{
+					Keyword:   keyword,
+					Message:   string(message.Value[:]),
+					Topic:     topic,
+					Partition: partition,
+					Offset:    message.Offset,
+				}
 			}
 		case err = <-consumer.Errors():
 			fmt.Println(err.Error())

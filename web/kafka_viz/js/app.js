@@ -20,11 +20,15 @@ var searchTopic = function(currentTopic, keyword) {
     }
   }
 
+
+  var dataList = $("<ul class='collection'>");
+  topicSearchResults.append(dataList);
+
+  var datum;
   searchSocket.onmessage = function (event) {
-    console.log(event.data);
+    data = JSON.parse(event.data);
     topicSearchResults.show();
-    topicSearchResults.append(event.data);
-    topicSearchResults.append("<br>");
+    dataList.append( $( "<li class='collection-item'><span class='title'>Partition: "+data.partition+" Offset: "+data.offset+"</span><p>"+data.message+"</p></li>"));
   }
 }
 
@@ -40,7 +44,6 @@ var pollTopic = function(currentTopic) {
   topicSocket.onmessage = function (event) {
     data = JSON.parse(event.data);
     data = data.result[0];
-    console.log(data);
     left = $("#"+data.name+"Left");
     showPartitions(data, left);
   }
@@ -101,7 +104,6 @@ var showPartitionData = function(topicName, partition, range) {
 
     var url = "/topics/"+topicName+"/"+partition+"/"+range;
     $.get(url, function(result) {
-      console.log("result:", result)
       for (i in result) {
         message = result[i].message;
         offset = result[i].offset;

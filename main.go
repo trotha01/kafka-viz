@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -202,7 +203,7 @@ func socketSearchHandler(kafka *client.KafkaConfig) func(*websocket.Conn) {
 
 		logger.Printf("Searching topic %s for %q", topic, keyword)
 		defer logger.Printf("Done searching topic %s for %q", topic, keyword)
-		found := make(chan string)
+		found := make(chan client.MessageMatch)
 		stopSearch := make(chan struct{})
 		isFound := false
 
@@ -217,7 +218,11 @@ func socketSearchHandler(kafka *client.KafkaConfig) func(*websocket.Conn) {
 			for {
 				select {
 				case match := <-found:
-					io.Copy(ws, strings.NewReader(match))
+					matchBytes, err := json.Marshal(match)
+					if err != nil {
+						logger.Printf("Error marshalling match: %s", err.Error())
+					}
+					io.Copy(ws, bytes.NewReader(matchBytes))
 					isFound = true
 				case <-stopSearch:
 					return
