@@ -25,6 +25,7 @@ type config struct {
 	kafkaConfigDir string
 	kafkaHost      string
 	kafkaPort      string
+	permissions    string
 }
 
 var conf *config
@@ -46,11 +47,16 @@ func main() {
 	}
 	defer kafka.Close()
 
-	rtc.HandleFunc("/topics", topicDataHandler(kafka))                                            // get metadata
-	rtc.Handle("/topics/{topic}/poll", websocket.Handler(pollTopic(kafka)))                       // poll for topic metadata
-	rtc.Handle("/topics/socket/{topic}/{keyword}", websocket.Handler(socketSearchHandler(kafka))) // search data
-	rtc.HandleFunc("/topics/{topic}/{partition}/{offsetRange}", consumerHandler(kafka))           // get specific data
-	rtc.HandleFunc("/topics/{topic}", producerHandler(kafka))                                     // insert data
+	if strings.Contains(conf.permissions, "R") {
+		rtc.HandleFunc("/topics", topicDataHandler(kafka))                                            // get metadata
+		rtc.Handle("/topics/{topic}/poll", websocket.Handler(pollTopic(kafka)))                       // poll for topic metadata
+		rtc.Handle("/topics/socket/{topic}/{keyword}", websocket.Handler(socketSearchHandler(kafka))) // search data
+		rtc.HandleFunc("/topics/{topic}/{partition}/{offsetRange}", consumerHandler(kafka))           // get specific data
+	}
+
+	if strings.Contains(conf.permissions, "W") {
+		rtc.HandleFunc("/topics/{topic}", producerHandler(kafka)) // insert data
+	}
 
 	rtc.PathPrefix("/").Handler(http.FileServer(http.Dir("./web/kafka_viz")))
 
@@ -288,6 +294,7 @@ func configFromEnv() {
 	conf.kafkaPort = os.Getenv("KAFKA_PORT")
 	conf.kafkaBinDir = os.Getenv("KAFKA_BIN_DIR")
 	conf.kafkaConfigDir = os.Getenv("KAFKA_CONFIG_DIR")
+	conf.permissions = os.Getenv("PERMISSIONS")
 
 	// defaults
 	if conf.host == "" {
@@ -307,6 +314,9 @@ func configFromEnv() {
 	}
 	if conf.kafkaPort == "" {
 		conf.kafkaPort = "9092"
+	}
+	if conf.permissions == "" {
+		conf.permissions = "R" // Read only, can't mutate kafka store
 	}
 }
 

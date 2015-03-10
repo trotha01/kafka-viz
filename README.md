@@ -33,6 +33,7 @@ Kafka-Viz can get it's configuration from the environment
 | LOG_FILE     | STDOUT        | The logfile. STDOUT can be used instead of a file (LOG_DIR will be ignored) |
 | KAFKA_HOST   | localhost     | The host of the kafka broker                                                |
 | KAFKA_PORT   | 9092          | The port of the kafka broker                                                |
+| PERMISSIONS  | R             | R, W, or RW, for read/write permisisons to kafka                            |
 
 
 
