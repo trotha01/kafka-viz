@@ -9,6 +9,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/gorilla/mux"
 	"github.com/trotha01/kafka-viz/kafka"
@@ -48,6 +49,7 @@ func main() {
 	rtc.HandleFunc("/topics", topicDataHandler(kafka))                                  // get metadata
 	rtc.Handle("/topics/{topic}/poll", websocket.Handler(pollTopic(kafka)))             // poll for topic metadata
 	rtc.HandleFunc("/topics/{topic}/{partition}/{offsetRange}", consumerHandler(kafka)) // get specific data
+	rtc.HandleFunc("/topics/{topic}/{keyword}", searchHandler(kafka))                   // search data
 	rtc.HandleFunc("/topics/{topic}", producerHandler(kafka))                           // insert data
 
 	rtc.PathPrefix("/").Handler(http.FileServer(http.Dir("./web/kafka_viz")))
@@ -64,9 +66,7 @@ func main() {
 }
 
 func topicDataHandler(kafka *client.KafkaConfig) func(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("here\n")
 	return func(w http.ResponseWriter, r *http.Request) {
-		fmt.Printf("here 2\n")
 		r.ParseForm()
 		topics := r.Form["topic"]
 
@@ -77,6 +77,40 @@ func topicDataHandler(kafka *client.KafkaConfig) func(w http.ResponseWriter, r *
 
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprintf(w, string(metadataResponse[:]))
+	}
+}
+
+func searchHandler(kafka *client.KafkaConfig) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		logger.Printf("Search Topic Request")
+		params := mux.Vars(r)
+		topic := params["topic"]
+		keyword := params["keyword"]
+		logger.Printf("Searching topic %s for %s", topic, keyword)
+		found := make(chan string)
+
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			kafka.SearchTopic(found, topic, keyword)
+		}()
+
+		go func() {
+			for {
+				select {
+				case match := <-found:
+					fmt.Println("Match: ", match)
+					fmt.Fprintf(w, match)
+				default:
+				}
+			}
+		}()
+
+		wg.Wait()
+		fmt.Printf("Done searching Topic")
+		return
+
 	}
 }
 

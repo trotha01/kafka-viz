@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
+	"regexp"
+	"sync"
 	"time"
 
 	"github.com/shopify/sarama"
@@ -137,7 +139,69 @@ type kafkaMessage struct {
 	Message string `json:"message"`
 }
 
+func (kc KafkaConfig) SearchTopic(found chan string, topic string, keyword string) {
+	topicMetadata, err := kc.Metadata([]string{topic})
+	if err != nil {
+		return
+	}
+
+	var wg sync.WaitGroup
+	for _, partition := range topicMetadata[0].Partition_info {
+		wg.Add(1)
+		go func(partition int32) {
+			defer wg.Done()
+			kc.SearchPartition(found, keyword, topic, partition)
+		}(partition.Id)
+	}
+
+	wg.Wait()
+	fmt.Println("Done waiting in searchTopic()")
+}
+
+func (kc KafkaConfig) SearchPartition(found chan string, keyword string, topic string, partition int32) {
+	fmt.Printf("Searching topic %s, partition %d for %s\n", topic, partition, keyword)
+
+	partitionData, err := kc.PartitionMetadata(topic, partition)
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+
+	master, err := sarama.NewConsumer(kc.client, nil)
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+
+	config := sarama.NewPartitionConsumerConfig()
+	config.OffsetMethod = sarama.OffsetMethodManual
+	config.OffsetValue = int64(0)
+	consumer, err := master.ConsumePartition(topic, int32(partition), config)
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+
+	var i int64
+	for i = 0; i < partitionData.Length-1; i++ {
+		select {
+		case message := <-consumer.Messages():
+			match, err := regexp.Match(keyword, message.Value)
+			if err != nil {
+				fmt.Println(err.Error())
+			}
+			if match {
+				found <- fmt.Sprintf("keyword found!\nmessage: %s\nkeyword: %s\n", string(message.Value), keyword)
+			}
+		case err = <-consumer.Errors():
+			fmt.Println(err.Error())
+			return
+		}
+	}
+}
+
 func (kc KafkaConfig) ConsumeOffsets(offset int, offsetCount int, topic string, partition int) ([]kafkaMessage, error) {
+
 	master, err := sarama.NewConsumer(kc.client, nil)
 	if err != nil {
 		return nil, err
@@ -163,6 +227,7 @@ func (kc KafkaConfig) ConsumeOffsets(offset int, offsetCount int, topic string, 
 		}
 	}
 	return result, nil
+
 }
 
 // Returns metadata about kafka
