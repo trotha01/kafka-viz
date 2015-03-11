@@ -33,10 +33,6 @@ main{
 	padding: 20px;
 	color: #00796B ;
 }
-.partitionRange{
-    float: right;
-    width: 200px;
-}
 .container{
 	text-align: center;
 	width: 80%
@@ -110,10 +106,6 @@ h6{
   padding: 10px;
   overflow: scroll;
   border-radius: 10px;
-}
-.dataInput{
-  float: left;
-  width: 50%;
 }
 .dataSubmit{
   float: left;

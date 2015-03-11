@@ -183,59 +183,95 @@ var showTopicData = function(topic) {
   var replicationNum = topic.replication;
   var partitionNum = topic.partitions;
 
-  //Create variables for divs & classes
+  //// Create variables for divs & classes ////
   var newContainer = $( "<div class='container'/>" );
-  var newSubTitle = $( "<div class='subTitle' />");
+
+  // Create Topic Header & Info
+  var newTopicRow = $("<div class='row'><div>");
+  var newTopicHeader = $("<div class='col s5'><h5>"+topicName+"</h5></div>");
+  var newTopicInfo = $(
+      "<div class='col s4'>"+
+      "<h6> partition(s): "+partitionNum+",  "+"replication factor: "+replicationNum+"</h6>"+
+      "</div>");
+  newTopicRow.append(newTopicHeader);
+  newTopicRow.append(newTopicInfo);
+  newContainer.append(newTopicRow);
+
+  // Add ability to insert into a kafka topic
+  var newInsertDataRow = $("<div class='row' />");
+  var newInsertBoxCol = $("<div class='col s5' />");
+  var newInsertInputBox = $(
+      "<div class='dataInput input-field'>"+
+        "<label for='"+topicName+"'>Add Data To Topic</label>"+
+        "<input type='text' id='"+topicName+"'"+
+        "class='android-input dataInput' name='customerEmail' />"+
+      "</div>");
+  var newSubmitBtnCol = $("<div class='col s3' />");
+  var newSubmitBtn = $( "<input class='btn dataSubmit' type='submit' value='Submit'/><br></form>");
+
+  newSubmitBtn.click(publishMessage(topicName));
+
+  newInsertBoxCol.append(newInsertInputBox);
+  newSubmitBtnCol.append(newSubmitBtn);
+  newInsertDataRow.append(newInsertBoxCol);
+  newInsertDataRow.append(newSubmitBtnCol);
+  newContainer.append(newInsertDataRow);
+
+
+  // Add ability to search through kafka topic
+  var newSearchDataRow = $("<div class='row' />");
+  var newSearchBoxCol = $("<div class='col s12' />");
+  var newSearchInputBox = $(
+      "<div class='input-field'>"+
+        "<label for='"+topicName+"Search'>Search Topic</label>"+
+        "<input type=text id='"+topicName+"Search'>"+
+      "</div>");
+  newSearchInputBox.bind('keypress', topicSearchKeyPress(topic));
+
+  newSearchBoxCol.append(newSearchInputBox);
+  newSearchDataRow.append(newSearchBoxCol);
+  newContainer.append(newSearchDataRow);
+
+  // Add container for topic search results
+  var topicSearchResults = $("<div id='"+topicName+"SearchResults' class='searchResults row'></div>");
+  topicSearchResults.hide();
+  newContainer.append(topicSearchResults);
+
+  // Add topic partition card
+  var partitionsCardRow = $("<div class='row' />");
+  var partitionsCardCol = $("<div class='col s12' />");
+  var partitionsCard = $("<div class='card green darken-4' />");
+  var partitionsCardContent = $("<div class='card-content white-text row' />");
+  var partitions = $("<div class='col s8'></p>"); // left side of card
+  var partitionsData = $("<div class='col s4'></p>"); // right side of card
+  partitionsCardContent.append(partitions);
+  partitionsCardContent.append(partitionsData);
+  partitionsCard.append(partitionsCardContent);
+  partitionsCardCol.append(partitionsCard);
+  partitionsCardRow.append(partitionsCardCol);
+  newContainer.append(partitionsCardRow);
+
+  // Add partitions to partition card
+  showPartitions(topic, partitions);
+
+  // Display data range in card
+  var newPartitionRange = $(
+      "<div class='partitionRange row'>"+
+      "<input type=text id='"+topicName+"PartitionRange' placeholder='partition range' />"+
+      "</div>" );
+  var newDataArea = $("<div class='data row' id='"+topicName+"Data' />");
+  newDataArea.hide();
+  newPartitionRange.bind('keypress', partitionRangeKeyPress(topic));
+  partitionsData.append(newPartitionRange);
+  partitionsData.append(newDataArea);
+
+
+  // var newSubTitle = $( "<div class='subTitle' />");
   var newTopic = $( "<div class='topic' />" );
   var newLeft = $( "<div class='leftFloat' id='"+topicName+"Left'/>");
   var newRight = $( "<div class='rightFloat' />");
-  var newExport = $( "<div class='dataInput input-field'>"+
-      "<label for='"+topicName+"'>Add Data To Topic</label>"+
-      "<input type='text' id='"+topicName+"'"+
-      "class='android-input dataInput'"+
-      "name='customerEmail' />"+
-      "</div>");
-  var newPartitionRange = $( "<div class='partitionRange'><input type=text id='"+topicName+"PartitionRange' placeholder='partition range'/></div>" );
-  var newSubmitBtn = $( "<input class='btn dataSubmit' type='submit' value='Submit'/><br></form>");
-  var newDataArea = $( "<div class='data', id='"+topicName+"Data';></div>");
-  var clear = $( "<div class='clear'></div>" );
-  var newTopicNavBar = $( "<div class='subNavBar'></div>");
-  newDataArea.hide();
-
-  var partitionAddButton = $("<div class='partitionButtons'><a class='btn-floating btn-medium waves-effect waves-light lightteal'><i class='mdi-content-add'></i></a> </div>");
-
-  newSubmitBtn.click(publishMessage(topicName));
-  newPartitionRange.bind('keypress', partitionRangeKeyPress(topic));
 
   $('main').append(newContainer);
-  $('main').append(newContainer);
-  newContainer.append(newSubTitle);
-  newContainer.append(newTopic);
-  newTopic.append(newTopicNavBar);
-  newTopic.append(newLeft);
-  newTopic.append(newRight);
-  newTopicNavBar.append(partitionAddButton);
-  newTopicNavBar.append(newPartitionRange);
-  newRight.append(newDataArea);
-
-  newSubTitle.append("<h5>"+topicName+"</h5>");
-  newSubTitle.append(newExport);
-  newSubTitle.append(newSubmitBtn);
-  var newAddButton = $( "<div class='partitionButtons' /><a class='btn-floating btn-medium waves-effect waves-light lightteal'><i class='mdi-content-add'></i></a><br><br>");
-  newSubTitle.append("<h6>"+"partition(s): "+partitionNum+",  "+"replication factor: "+replicationNum+"</h6>");
-
-  var topicSearch = $("<div><input type=text id='"+topicName+"Search' placeholder='searchTopic'></div>");
-  var topicSearchResults = $("<div id='"+topicName+"SearchResults' class='searchResults'></div>");
-  topicSearchResults.hide();
-  topicSearch.bind('keypress', topicSearchKeyPress(topic));
-  newSubTitle.append(topicSearch);
-  newSubTitle.append(topicSearchResults);
-
-  var newPartitionRange = $( "<div class='partitionRange'><input type=text id='"+topicName+"PartitionRange' placeholder='partition range'/></div>" );
-  newPartitionRange.bind('keypress', partitionRangeKeyPress(topic));
-
-
-  showPartitions(topic, newLeft);
   pollTopic(topic.name);
 }
 
