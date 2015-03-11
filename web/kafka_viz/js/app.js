@@ -240,7 +240,7 @@ var showTopicData = function(topic) {
   // Add topic partition card
   var partitionsCardRow = $("<div class='row' />");
   var partitionsCardCol = $("<div class='col s12' />");
-  var partitionsCard = $("<div class='card green darken-4' />");
+  var partitionsCard = $("<div class='card blue' />");
   var partitionsCardContent = $("<div class='card-content white-text row' />");
   var partitions = $("<div class='col s8'></p>"); // left side of card
   var partitionsData = $("<div class='col s4'></p>"); // right side of card
@@ -256,8 +256,9 @@ var showTopicData = function(topic) {
 
   // Display data range in card
   var newPartitionRange = $(
-      "<div class='partitionRange row'>"+
-      "<input type=text id='"+topicName+"PartitionRange' placeholder='partition range' />"+
+      "<div class='partitionRange input-field row'>"+
+      "<label for='"+topicName+"PartitionRange'>Partition Range</label>"+
+      "<input type='text' id='"+topicName+"PartitionRange' />"+
       "</div>" );
   var newDataArea = $("<div class='data row' id='"+topicName+"Data' />");
   newDataArea.hide();

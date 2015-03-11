@@ -1,10 +1,20 @@
 nav{
-	background-color: #00796B;
+	background-color: #2196F3;
 	height:100px;
 	padding: 10px;
 }
 hr {
   clear: both;
+}
+.input-field input[type=text]:focus + label {
+  color: #E040FB;
+}
+.input-field input[type=text]:focus {
+  border-bottom: 1px solid #E040FB;
+  box-shadow: 0 1px 0 0 #E040FB;
+}
+.dropdown-content li > a{
+  color: black;
 }
 #title{
 	position: absolute;
@@ -20,6 +30,7 @@ hr {
         min-width: 180px;
 }
 #navButtons a {
+        background-color:#E040FB;
         min-width: 200px;
 }
 
@@ -31,7 +42,7 @@ hr {
 }
 main{
 	padding: 20px;
-	color: #00796B ;
+	color: black;
 }
 .container{
 	text-align: center;
@@ -56,7 +67,7 @@ h6{
 .partition{
         display: block;
 	text-align: right;
-	background-color: #009688;
+	background-color: #BBDEFB;
 	border-radius: 10px;
 	color: white;
 }
@@ -108,7 +119,7 @@ h6{
   border-radius: 10px;
 }
 .dataSubmit{
-  float: left;
+  background-color: #E040FB;
 }
 .dataList{
   list-style-type: none;
