@@ -44,10 +44,6 @@ main{
 	padding: 20px;
 	color: black;
 }
-.container{
-	text-align: center;
-	width: 80%
-}
 .topic{
 	text-align: center;
 	overflow:scroll;
