@@ -189,9 +189,10 @@ var showTopicData = function(topic) {
   var newTopic = $( "<div class='topic' />" );
   var newLeft = $( "<div class='leftFloat' id='"+topicName+"Left'/>");
   var newRight = $( "<div class='rightFloat' />");
-  var newExport = $( "<div class='dataInput android-input-wrapper'>"+
+  var newExport = $( "<div class='dataInput input-field'>"+
+      "<label for='"+topicName+"'>Add Data To Topic</label>"+
       "<input type='text' id='"+topicName+"'"+
-      "placeholder='Add Data to Topic' class='android-input dataInput'"+
+      "class='android-input dataInput'"+
       "name='customerEmail' />"+
       "</div>");
   var newPartitionRange = $( "<div class='partitionRange'><input type=text id='"+topicName+"PartitionRange' placeholder='partition range'/></div>" );
