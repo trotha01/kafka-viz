@@ -6,6 +6,12 @@ nav{
 hr {
   clear: both;
 }
+.btn:hover{
+  background-color: #1976D2;
+}
+.btn-active{
+  background-color: #1976D2 !important;
+}
 .input-field input[type=text]:focus + label {
   color: #E040FB;
 }

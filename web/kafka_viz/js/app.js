@@ -93,6 +93,7 @@ var partitionRange = function(topicName, partitionLength) {
   var lenMinusFive = partitionLength < 5 ? 0 : partitionLength - 5;
   range = "" + lenMinusFive + "-" + partitionLength;
   $('#'+topicName+"PartitionRange").val(range);
+  $('#'+topicName+"PartitionRange").focus();
   return range;
 }
 
@@ -116,9 +117,15 @@ var showPartitionData = function(topicName, partition, range) {
     });
 }
 
+var activatePartitionButton = function(button, topicName, partition) {
+    $(".partition").removeClass('btn-active');
+    $(button).addClass('btn-active');
+}
+
 var partitionClick = function(topicName, partition, partitionLength) {
   return function() {
     selectedPartition = partition;
+    activatePartitionButton(this, topicName, partition);
     range = partitionRange(topicName, partitionLength);
     showPartitionData(topicName, partition, range);
   }
