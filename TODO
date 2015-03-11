@@ -3,3 +3,5 @@ Prettify ui
 Show lag
 Configurable to use Apiary
 Add a loading icon until topic search is done
+Check if range is goes past end of partition
+Save current topic to local storage
