@@ -1,0 +1,32 @@
+{
+	"ImportPath": "github.com/trotha01/kafka-viz",
+	"GoVersion": "go1.3",
+	"Deps": [
+		{
+			"ImportPath": "code.google.com/p/snappy-go/snappy",
+			"Comment": "null-15",
+			"Rev": "12e4b4183793ac4b061921e7980845e750679fd0"
+		},
+		{
+			"ImportPath": "github.com/eapache/go-resiliency/breaker",
+			"Comment": "v1",
+			"Rev": "6800482f2c813e689c88b7ed3282262385011890"
+		},
+		{
+			"ImportPath": "github.com/gorilla/context",
+			"Rev": "14f550f51af52180c2eefed15e5fd18d63c0a64a"
+		},
+		{
+			"ImportPath": "github.com/gorilla/mux",
+			"Rev": "e444e69cbd2e2e3e0749a2f3c717cec491552bbf"
+		},
+		{
+			"ImportPath": "github.com/shopify/sarama",
+			"Rev": "e5245babade370a55a58dba02e6ba861da318b73"
+		},
+		{
+			"ImportPath": "golang.org/x/net/websocket",
+			"Rev": "8b2d0ae1f4c3b83c10ff17e89a89ff04cc0903c3"
+		}
+	]
+}
