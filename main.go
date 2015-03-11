@@ -76,6 +76,7 @@ func topicDataHandler(kafka *client.KafkaConfig) func(w http.ResponseWriter, r *
 	return func(w http.ResponseWriter, r *http.Request) {
 		r.ParseForm()
 		topics := r.Form["topic"]
+		logger.Printf("Call for topic metadata. Topics: %s", topics)
 
 		metadataResponse, err := kafka.TopicDataResponse(topics)
 		if err != nil {
@@ -225,6 +226,7 @@ func socketSearchHandler(kafka *client.KafkaConfig) func(*websocket.Conn) {
 					io.Copy(ws, bytes.NewReader(matchBytes))
 					isFound = true
 				case <-stopSearch:
+					fmt.Printf("Search is stopped")
 					return
 				default:
 				}
@@ -237,6 +239,7 @@ func socketSearchHandler(kafka *client.KafkaConfig) func(*websocket.Conn) {
 		if !isFound {
 			io.Copy(ws, strings.NewReader("Not Found"))
 		}
+		ws.Close()
 		return
 	}
 

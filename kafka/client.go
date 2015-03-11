@@ -36,15 +36,16 @@ func NewKafka(kafkaHost string, kafkaPort string) (*KafkaConfig, error) {
 		return nil, err
 	}
 
-	kc.client, err = sarama.NewClient("client_id", []string{broker}, sarama.NewClientConfig())
+	kc.client, err = sarama.NewClient([]string{broker}, sarama.NewConfig())
 	if err != nil {
 		return nil, err
 	}
 
-	kc.producer, err = sarama.NewProducer(kc.client, nil)
+	producer, err := sarama.NewProducerFromClient(kc.client)
 	if err != nil {
 		return nil, err
 	}
+	kc.producer = &producer
 
 	return &kc, nil
 }
@@ -74,12 +75,14 @@ func NewKafka(kafkaHost string, kafkaPort string) (*KafkaConfig, error) {
    }
 */
 func (kc KafkaConfig) Metadata(topics []string) ([]TopicMetadata, error) {
+	fmt.Printf("Metadata(%v)\n", topics)
+	fmt.Printf("Done Metadata(%v)\n", topics)
 	request := sarama.MetadataRequest{}
 	if len(topics) != 0 {
 		request.Topics = topics
 	}
 
-	response, err := kc.broker.GetMetadata("myClient", &request)
+	response, err := kc.broker.GetMetadata(&request)
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +133,7 @@ func (kc KafkaConfig) PartitionMetadata(topic string, partition int32) (*partiti
 }
 
 func (kc KafkaConfig) Produce(message string, topic string) {
-	kc.producer.Input() <- &sarama.ProducerMessage{Topic: topic, Key: nil, Value: sarama.StringEncoder(message)}
+	(*kc.producer).Input() <- &sarama.ProducerMessage{Topic: topic, Key: nil, Value: sarama.StringEncoder(message)}
 }
 
 type kafkaMessage struct {
@@ -140,6 +143,7 @@ type kafkaMessage struct {
 
 func (kc KafkaConfig) SearchTopic(found chan MessageMatch, stopSearch chan struct{}, topic string, keyword string) {
 	topicMetadata, err := kc.Metadata([]string{topic})
+	defer fmt.Printf("SearchTopic(%s) done\n", topic)
 	if err != nil {
 		return
 	}
@@ -165,26 +169,25 @@ type MessageMatch struct {
 }
 
 func (kc KafkaConfig) SearchPartition(found chan MessageMatch, stopSearch chan struct{}, keyword string, topic string, partition int32) {
+	defer fmt.Printf("SearchPartition(%s, %d) done\n", topic, partition)
 	partitionData, err := kc.PartitionMetadata(topic, partition)
 	if err != nil {
 		fmt.Println(err.Error())
 		return
 	}
 
-	master, err := sarama.NewConsumer(kc.client, nil)
+	master, err := sarama.NewConsumerFromClient(kc.client)
 	if err != nil {
 		fmt.Println(err.Error())
 		return
 	}
 
-	config := sarama.NewPartitionConsumerConfig()
-	config.OffsetMethod = sarama.OffsetMethodManual
-	config.OffsetValue = int64(0)
-	consumer, err := master.ConsumePartition(topic, int32(partition), config)
+	consumer, err := master.ConsumePartition(topic, int32(partition), int64(0))
 	if err != nil {
 		fmt.Println(err.Error())
 		return
 	}
+	defer consumer.Close()
 
 	var i int64
 	for i = 0; i < partitionData.Length-1; i++ {
@@ -214,15 +217,12 @@ func (kc KafkaConfig) SearchPartition(found chan MessageMatch, stopSearch chan s
 
 func (kc KafkaConfig) ConsumeOffsets(offset int, offsetCount int, topic string, partition int) ([]kafkaMessage, error) {
 
-	master, err := sarama.NewConsumer(kc.client, nil)
+	master, err := sarama.NewConsumerFromClient(kc.client)
 	if err != nil {
 		return nil, err
 	}
 
-	config := sarama.NewPartitionConsumerConfig()
-	config.OffsetMethod = sarama.OffsetMethodManual
-	config.OffsetValue = int64(offset)
-	consumer, err := master.ConsumePartition(topic, int32(partition), config)
+	consumer, err := master.ConsumePartition(topic, int32(partition), int64(offset))
 	if err != nil {
 		return nil, err
 	}
@@ -253,7 +253,7 @@ type TopicMetadata struct {
 func (kc KafkaConfig) Close() {
 	kc.broker.Close()
 	kc.client.Close()
-	kc.producer.Close()
+	(*kc.producer).Close()
 
 	/*
 		zkCmd = exec.Command("/bin/sh", "-c", kc.binDir+"/zookeeper-server-stop.sh "+kc.configDir+"/zookeeper.properties")
@@ -271,6 +271,8 @@ func (kc KafkaConfig) Close() {
 }
 
 func (kc KafkaConfig) Poll(topic string, topicDataChan chan string, closeChan chan struct{}) {
+	fmt.Printf("Poll(%s)\n", topic)
+	defer fmt.Printf("Done Poll(%s)\n", topic)
 	ticker := time.NewTicker(time.Millisecond * 1000)
 	go func() {
 		for _ = range ticker.C {
@@ -290,25 +292,32 @@ func (kc KafkaConfig) Poll(topic string, topicDataChan chan string, closeChan ch
 			}
 		}
 	}()
-	time.Sleep(time.Millisecond * 10000)
+	time.Sleep(time.Millisecond * 2000)
 	ticker.Stop()
 	fmt.Println("Ticker stopped")
 }
 
 func (kc KafkaConfig) TopicDataResponse(topics []string) ([]byte, error) {
+	fmt.Printf("TopicDataResponse(%v)\n", topics)
+	defer fmt.Printf("Done TopicDataResponse(%v)\n", topics)
 	metadata, err := kc.Metadata(topics)
+	fmt.Printf("HERE TopicDataResponse(%v)\n", topics)
 	if err != nil {
 		return nil, err
 	}
+	fmt.Printf("HERE 2 TopicDataResponse(%v)\n", topics)
 
 	metadataResponse := MetadataResponse{}
 	metadataResponse.Result = metadata
 
 	response, err := json.Marshal(metadataResponse)
+	fmt.Printf("HERE 3 TopicDataResponse(%v)\n", topics)
 	if err != nil {
+		fmt.Printf("HERE 4 TopicDataResponse(%v)\n", topics)
 		return nil, err
 	}
 
+	fmt.Printf("HERE 5 TopicDataResponse(%v)\n", topics)
 	return response, nil
 }
 
