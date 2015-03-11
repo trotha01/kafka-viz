@@ -226,7 +226,6 @@ func socketSearchHandler(kafka *client.KafkaConfig) func(*websocket.Conn) {
 					io.Copy(ws, bytes.NewReader(matchBytes))
 					isFound = true
 				case <-stopSearch:
-					fmt.Printf("Search is stopped")
 					return
 				default:
 				}

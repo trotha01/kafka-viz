@@ -75,8 +75,6 @@ func NewKafka(kafkaHost string, kafkaPort string) (*KafkaConfig, error) {
    }
 */
 func (kc KafkaConfig) Metadata(topics []string) ([]TopicMetadata, error) {
-	fmt.Printf("Metadata(%v)\n", topics)
-	fmt.Printf("Done Metadata(%v)\n", topics)
 	request := sarama.MetadataRequest{}
 	if len(topics) != 0 {
 		request.Topics = topics
@@ -143,7 +141,6 @@ type kafkaMessage struct {
 
 func (kc KafkaConfig) SearchTopic(found chan MessageMatch, stopSearch chan struct{}, topic string, keyword string) {
 	topicMetadata, err := kc.Metadata([]string{topic})
-	defer fmt.Printf("SearchTopic(%s) done\n", topic)
 	if err != nil {
 		return
 	}
@@ -169,7 +166,6 @@ type MessageMatch struct {
 }
 
 func (kc KafkaConfig) SearchPartition(found chan MessageMatch, stopSearch chan struct{}, keyword string, topic string, partition int32) {
-	defer fmt.Printf("SearchPartition(%s, %d) done\n", topic, partition)
 	partitionData, err := kc.PartitionMetadata(topic, partition)
 	if err != nil {
 		fmt.Println(err.Error())
@@ -271,8 +267,6 @@ func (kc KafkaConfig) Close() {
 }
 
 func (kc KafkaConfig) Poll(topic string, topicDataChan chan string, closeChan chan struct{}) {
-	fmt.Printf("Poll(%s)\n", topic)
-	defer fmt.Printf("Done Poll(%s)\n", topic)
 	ticker := time.NewTicker(time.Millisecond * 1000)
 	go func() {
 		for _ = range ticker.C {
@@ -298,26 +292,19 @@ func (kc KafkaConfig) Poll(topic string, topicDataChan chan string, closeChan ch
 }
 
 func (kc KafkaConfig) TopicDataResponse(topics []string) ([]byte, error) {
-	fmt.Printf("TopicDataResponse(%v)\n", topics)
-	defer fmt.Printf("Done TopicDataResponse(%v)\n", topics)
 	metadata, err := kc.Metadata(topics)
-	fmt.Printf("HERE TopicDataResponse(%v)\n", topics)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("HERE 2 TopicDataResponse(%v)\n", topics)
 
 	metadataResponse := MetadataResponse{}
 	metadataResponse.Result = metadata
 
 	response, err := json.Marshal(metadataResponse)
-	fmt.Printf("HERE 3 TopicDataResponse(%v)\n", topics)
 	if err != nil {
-		fmt.Printf("HERE 4 TopicDataResponse(%v)\n", topics)
 		return nil, err
 	}
 
-	fmt.Printf("HERE 5 TopicDataResponse(%v)\n", topics)
 	return response, nil
 }
 
