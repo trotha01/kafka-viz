@@ -188,9 +188,9 @@ var showTopicData = function(topic) {
 
   // Create Topic Header & Info
   var newTopicRow = $("<div class='row'><div>");
-  var newTopicHeader = $("<div class='col s6'><h5>"+topicName+"</h5></div>");
+  var newTopicHeader = $("<div class='col s8'><h5>"+topicName+"</h5></div>");
   var newTopicInfo = $(
-      "<div class='col s6'>"+
+      "<div class='col s4'>"+
       "<h6> partition(s): "+partitionNum+",  "+"replication factor: "+replicationNum+"</h6>"+
       "</div>");
   newTopicRow.append(newTopicHeader);

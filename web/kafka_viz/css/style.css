@@ -54,12 +54,6 @@ main{
 	border-radius: 10px;
 	padding: 1%;
 }
-h5{
-	text-align: left;
-}
-h6{
-	text-align: right;
-}
 .partition{
         display: block;
 	text-align: right;
